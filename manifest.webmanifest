@@ -1,0 +1,14 @@
+{
+  "name": "Quest: The Lost Realms",
+  "short_name": "Quest",
+  "description": "A cozy productivity adventure. Your everyday life is the adventure.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#e9d3a8",
+  "theme_color": "#2f3826",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

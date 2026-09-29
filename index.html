@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2f3826">
+  <title>Quest: The Lost Realms</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Cormorant+Garamond:ital,wght@0,600;1,500&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Quest">
+  <meta name="description" content="A cozy productivity adventure. Your everyday life is the adventure.">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body data-screen="loading">
+  <canvas id="world" aria-label="Dragon Haven, a small fantasy island you can explore"></canvas>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <!-- Loading -->
+  <div id="loading" class="loading">
+    <p class="loading-mark">QUEST</p>
+    <p class="loading-text">Opening the Vale…</p>
+  </div>
+
+  <!-- 1. Welcome -->
+  <section id="welcome" class="screen" aria-labelledby="welcome-title">
+    <div class="welcome-card">
+      <h1 id="welcome-title" class="wordmark">Quest<span>The Lost Realms</span></h1>
+      <p class="tagline">Your everyday life is the adventure.</p>
+      <button class="btn primary big" id="begin">Begin</button>
+    </div>
+  </section>
+
+  <!-- 2. Dragon selection -->
+  <section id="select" class="screen" aria-labelledby="select-title">
+    <header class="select-head">
+      <h2 id="select-title">Choose your companion</h2>
+      <p>A little dragon to keep you company on every Quest.</p>
+    </header>
+    <div class="select-foot">
+      <div class="dragon-cards" id="dragon-cards" role="radiogroup" aria-label="Dragons"></div>
+      <button class="btn primary big" id="confirm-dragon" disabled>Choose a dragon</button>
+    </div>
+  </section>
+
+  <!-- 3. Dragon Haven -->
+  <section id="haven" class="screen" aria-label="Dragon Haven">
+    <header class="hud-top">
+      <div class="crest">
+        <h1>Dragon Haven</h1>
+        <p id="haven-sub">Verdant Vale</p>
+      </div>
+      <div class="menu-wrap">
+        <button class="icon-btn vale" id="vale-btn" aria-label="Travel to Verdant Vale" title="Verdant Vale">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 19l6.5-10 3.5 5 2.5-3.5L22 19z"/><circle cx="17" cy="6" r="2.2"/></svg>
+        </button>
+        <button class="icon-btn gem" id="collection-btn" aria-label="Hatch and Treasures" title="Hatch &amp; Treasures">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 5-2.5 11h-9L5 8z"/><path class="shine" d="M9 8l3-2 3 2-3 3z"/></svg>
+        </button>
+        <button class="icon-btn" id="menu-btn" aria-label="Menu" aria-expanded="false" aria-controls="menu">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+        </button>
+        <div class="menu" id="menu" hidden>
+          <button data-menu="vale">Travel to Verdant Vale</button>
+          <button data-menu="door">The Ancient Door</button>
+          <button data-menu="collection">Hatch &amp; Treasures</button>
+          <button data-menu="templates">Quest Templates</button>
+          <button data-menu="settings">Settings</button>
+          <button data-menu="recenter">Recenter view</button>
+          <button data-menu="companion">Change companion</button>
+          <button data-menu="reset" class="danger">Start over…</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 4. Today's Quests -->
+    <aside class="quest-panel" id="quest-panel" data-open="true" aria-labelledby="quests-title">
+      <div class="panel-head">
+        <button class="panel-grip" id="panel-toggle" aria-label="Show or hide Today's Quests" aria-expanded="true"><span></span></button>
+        <div class="panel-title">
+          <h2 id="quests-title">Today's Quests</h2>
+          <p class="date" id="today-date"></p>
+        </div>
+        <button class="btn primary" id="new-quest">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          New Quest
+        </button>
+      </div>
+      <div class="panel-body" id="quest-list"></div>
+    </aside>
+  </section>
+
+  <!-- Verdant Vale -->
+  <section id="vale" class="screen" aria-label="Verdant Vale">
+    <header class="hud-top">
+      <div class="crest">
+        <h1>Verdant Vale</h1>
+        <p>The First Realm</p>
+      </div>
+      <button class="btn primary" id="return-btn">Return to Haven</button>
+    </header>
+  </section>
+
+  <!-- 7. Focus Quest -->
+  <section id="focus" class="screen" aria-label="Focus Quest">
+    <div class="focus-card" id="focus-card" data-state="running">
+      <div class="focus-ring" id="focus-ring">
+        <svg viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="track" cx="60" cy="60" r="54"/>
+          <circle class="bar" cx="60" cy="60" r="54"/>
+        </svg>
+        <div class="focus-time">
+          <span id="focus-time" role="timer" aria-live="off">25:00</span>
+          <small id="focus-status">Focusing</small>
+        </div>
+      </div>
+      <div class="focus-info">
+        <p class="kind focus">Focus Quest</p>
+        <h2 id="focus-title"></h2>
+        <p class="focus-activity" id="focus-activity" aria-live="polite"></p>
+        <ul class="step-list compact" id="focus-steps"></ul>
+        <div class="focus-actions" id="focus-actions"></div>
+        <button class="link-btn" id="focus-leave">End session and save for later</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="caption" class="caption" role="status" aria-live="polite"></div>
+  <div id="celebrate" class="celebrate" aria-live="polite">
+    <p class="eyebrow">Quest Complete</p>
+    <h3></h3>
+    <p class="line"></p>
+  </div>
+  <div id="discovery" class="discovery" role="status" aria-live="polite"></div>
+  <div id="hatch-card" class="discovery hatch-card" role="dialog" aria-label="A new hatchling"></div>
+  <div id="dialogue" class="dialogue" role="dialog" aria-live="polite" aria-label="Conversation"></div>
+  <div id="story-bars" class="story-bars" aria-live="polite">
+    <div class="bar top"><button class="link-btn" id="story-skip">Skip</button></div>
+    <div class="bar bottom"><p id="story-text"></p></div>
+  </div>
+  <div id="tour" class="tour" role="dialog" aria-label="Welcome tour">
+    <div class="tour-spot" hidden></div>
+    <div class="tour-card"></div>
+  </div>
+  <div id="modal-root"></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
