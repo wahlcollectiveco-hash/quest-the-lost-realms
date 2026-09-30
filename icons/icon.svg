@@ -1,17 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <radialGradient id="bg" cx="50%" cy="38%" r="75%"><stop offset="0" stop-color="#f7e3b6"/><stop offset="1" stop-color="#c9973a"/></radialGradient>
-    <radialGradient id="egg" cx="40%" cy="32%" r="75%"><stop offset="0" stop-color="#fffdf6"/><stop offset="1" stop-color="#d6efd9"/></radialGradient>
-    <radialGradient id="glow"><stop offset="0" stop-color="#fff3c8" stop-opacity="0.9"/><stop offset="1" stop-color="#fff3c8" stop-opacity="0"/></radialGradient>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f9e6bb"/><stop offset="0.6" stop-color="#f1d49a"/><stop offset="1" stop-color="#e2bd7c"/></linearGradient>
+    <radialGradient id="sun" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff6d8" stop-opacity="1"/><stop offset="1" stop-color="#fff6d8" stop-opacity="0"/></radialGradient>
+    <radialGradient id="egg" cx="38%" cy="30%" r="80%"><stop offset="0" stop-color="#fffdf6"/><stop offset="0.7" stop-color="#e7f3df"/><stop offset="1" stop-color="#c9e2c6"/></radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff1c2" stop-opacity="0.95"/><stop offset="1" stop-color="#fff1c2" stop-opacity="0"/></radialGradient>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
-  <circle cx="256" cy="270" r="190" fill="url(#glow)"/>
-  <ellipse cx="256" cy="380" rx="150" ry="42" fill="#7a5a3a"/>
-  <ellipse cx="256" cy="372" rx="130" ry="30" fill="#9a7447"/>
-  <ellipse cx="256" cy="250" rx="112" ry="146" fill="url(#egg)" stroke="#b8904a" stroke-opacity="0.25" stroke-width="4"/>
-  <g fill="none" stroke="#d9a23a" stroke-width="9" stroke-linecap="round">
-    <circle cx="256" cy="252" r="46"/>
-    <path d="M232 230l40 44M274 226l-30 50"/>
-  </g>
-  <path d="M184 300c24 12 48-10 72 0s48 12 72 0" fill="none" stroke="#d9a23a" stroke-width="6" stroke-linecap="round" opacity="0.7"/>
-</svg>
+  <rect width="512" height="512" fill="url(#sky)"/>
+  <circle cx="256" cy="250" r="230" fill="url(#sun)"/>
+  <path d="M0 330 Q90 270 180 310 T360 300 T512 290 V512 H0z" fill="#b7c98f" opacity="0.8"/>
+  <!-- left trees -->
+  <g fill="#5e8f3e"><rect x="52" y="250" width="16" height="120" fill="#7b5a3e"/><circle cx="60" cy="230" r="58"/><circle cx="24" cy="270" r="44"/><circle cx="98" cy="262" r="42"/></g>
+  <g fill="#4f7f38"><rect x="-6" y="290" width="14" height="90" fill="#6b4e36"/><circle cx="0" cy="275" r="48"/></g>
+  <g><rect x="138" y="300" width="10" height="60" fill="#7b5a3e"/><path d="M143 190 L185 290 H101z" fill="#4a7a45"/><path d="M143 225 L192 320 H94z" fill="#447040"/></g>
+  <!-- right trees -->
+  <g fill="#6fa04a"><rect x="440" y="250" width="16" height="120" fill="#7b5a3e"/><circle cx="450" cy="228" r="60"/><circle cx="494" cy="268" r="44"/><circle cx="410" cy="262" r="40"/></g>
+  <g><rect x="364" y="300" width="10" height="60" fill="#7b5a3e"/><path d="M369 200 L408 292 H330z" fill="#4a7a45"/><path d="M369 232 L414 322 H324z" fill="#447040"/></g>
+  <!-- meadow -->
+  <path d="M0 360 Q128 330 256 344 T512 350 V512 H0z" fill="#86b35c"/>
+  <path d="M0 420 Q140 390 256 404 T512 400 V512 H0z" fill="#7aa853"/>
+  <g fill="#f6c7d6"><circle cx="70" cy="440" r="7"/><circle cx="96" cy="462" r="6"/><circle cx="440" cy="452" r="7"/></g>
+  <g fill="#fff"><circle cx="120" cy="430" r="6"/><circle cx="410" cy="470" r="6"/><circle cx="460" cy="420" r="5"/></g>
+  <g fill="#f3d46c"><circle cx="150" cy="468" r="6"/><circle cx="380" cy="440" r="6"/><circle cx="52" cy="480" r="5"/></g>
+  <!-- fireflies -->
+  <g fill="#fff4c8"><circle cx="118" cy="182" r="4"/><circle cx="396" cy="160" r="3.5"/><circle cx="430" cy="340" r="3"/><circle cx="84" cy="330" r="3"/><circle cx="330" cy="120" r="3"/></g>
+  <ellipse cx="256" cy="402" rx="132" ry="34" fill="#6e4d2f"/>
+  <ellipse cx="256" cy="392" rx="118" ry="26" fill="#9a7447"/>
+  <path d="M146 392 q20 -18 40 -4 M196 384 q22 -16 44 0 M270 382 q22 -14 42 2 M320 388 q20 -12 40 6" stroke="#7a5634" stroke-width="6" fill="none" stroke-linecap="round"/>  <circle cx="256" cy="280" r="150" fill="url(#glow)"/>
+  <ellipse cx="256" cy="280" rx="92" ry="118" fill="url(#egg)" stroke="#a88a4a" stroke-opacity="0.25" stroke-width="4"/>
+  <g fill="#c9bde6" opacity="0.7"><circle cx="228" cy="236" r="7"/><circle cx="284" cy="300" r="9"/><circle cx="240" cy="330" r="6"/><circle cx="296" cy="226" r="5"/></g>
+  <g fill="#b8cfa8" opacity="0.8"><circle cx="268" cy="262" r="6"/><circle cx="214" cy="290" r="5"/><circle cx="302" cy="340" r="5"/></g>
+  <ellipse cx="226" cy="222" rx="18" ry="30" fill="#fff" opacity="0.55" transform="rotate(-20 226 222)"/></svg>
