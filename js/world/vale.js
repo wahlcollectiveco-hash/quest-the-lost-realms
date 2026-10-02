@@ -107,6 +107,7 @@ export function buildVale(world) {
   group.position.copy(VALE_CENTER);
   scene.add(group);
   const updaters = [];
+  let meadow = null; // wildflower instances, so their density can change
   const at = (x, z, y = 0) => new V(x, y, z).add(VALE_CENTER);
 
   // ---- Ground ----
@@ -517,7 +518,21 @@ export function buildVale(world) {
         n++;
       }
     }
+    // Shuffle so that showing fewer flowers thins every patch evenly.
+    const order = Array.from({ length: n }, (_, i) => i);
+    for (let i = n - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+    for (const im of [heads, centres, stems]) {
+      const src = im.instanceMatrix.array.slice(0, n * 16);
+      order.forEach((from, to) => im.instanceMatrix.array.set(src.subarray(from * 16, from * 16 + 16), to * 16));
+      im.instanceMatrix.needsUpdate = true;
+    }
+    {
+      const src = heads.instanceColor.array.slice(0, n * 3);
+      order.forEach((from, to) => heads.instanceColor.array.set(src.subarray(from * 3, from * 3 + 3), to * 3));
+      heads.instanceColor.needsUpdate = true;
+    }
     heads.count = centres.count = stems.count = n;
+    meadow = { meshes: [heads, centres, stems], total: n };
     group.add(heads, centres, stems);
   }
 
@@ -551,6 +566,7 @@ export function buildVale(world) {
   const grow = (obj, dur = 1.2) => world.tween(dur, (p) => obj.scale.setScalar(Math.max(0.001, p)), easeOut);
   return {
     group,
+    setFlowerDensity(f) { for (const m of meadow.meshes) m.count = Math.round(meadow.total * f); },
     center: VALE_CENTER.clone(),
     arrive: at(L.arrive[0], L.arrive[1]),
     // Where the dragon should stand to look at something

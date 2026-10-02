@@ -26,7 +26,7 @@ function glowTexture() {
 
 export const ABILITY_LINES = {
   ember: (n) => `${n} puffs out a proud little flame!`,
-  pebble: (n) => `${n} makes wildflowers pop up all around.`,
+  pebble: (n) => `${n} makes wildflowers pop up all around her.`,
   moon: (n) => `${n} drifts up on a swirl of starlight.`,
 };
 

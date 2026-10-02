@@ -14,7 +14,7 @@ export const DRAGONS = {
     colors: { body: 0x7ea45a, belly: 0xeadcac, accent: 0xd8b25e, wing: 0xa9c985, eye: 0x2c2216 },
     build: { round: 1.1, wing: 0.9, tail: 1, horn: 'nub', frill: true, flower: true },
     lines: {
-      select: 'Pebble tilts its head and blinks at you.',
+      select: 'Pebble tilts her head and blinks at you.',
       greet: ['Pebble peeks out from the flowers, happy to see you.'],
       tap: [
         'Pebble sniffs a flower and sneezes.',
@@ -24,7 +24,7 @@ export const DRAGONS = {
       ],
       complete: [
         'Pebble does a happy little hop!',
-        'Pebble tucks a clover behind its horn to celebrate.',
+        'Pebble tucks a clover behind her horn to celebrate.',
         'Pebble purrs like a warm kettle.',
       ],
     },
@@ -39,17 +39,17 @@ export const DRAGONS = {
     colors: { body: 0xd9773a, belly: 0xf2dfb9, accent: 0xe8b64f, wing: 0x9a4a2a, eye: 0x2a1a12 },
     build: { round: 1, wing: 1.15, tail: 1.05, horn: 'swept' },
     lines: {
-      select: 'Ember puffs out its chest and grins.',
+      select: 'Ember puffs out his chest and grins.',
       greet: ['Ember bounds over, ready for adventure.'],
       tap: [
         'Ember puffs a tiny, warm spark.',
         'Ember wants to go exploring!',
-        'Ember stretches its wings proudly.',
+        'Ember stretches his wings proudly.',
         'Ember is eyeing that old chest…',
       ],
       complete: [
         'Ember lets out a small, proud roar!',
-        'Ember flaps its wings, delighted.',
+        'Ember flaps his wings, delighted.',
         'Ember glows with pride.',
       ],
     },

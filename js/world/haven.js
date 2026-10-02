@@ -161,6 +161,7 @@ export function buildHaven(world, { say }) {
 
   let pm = null; // drifting light motes (brighter at night)
   let nightLevel = 0;
+  let meadow = null; // wildflower instances, so their density can change
   const cloudMats = [];
   const cloudTint = new THREE.Color('#ffffff');
   updaters.push((t) => { ENV.uTime.value = t; });
@@ -661,7 +662,21 @@ export function buildHaven(world, { say }) {
         n++;
       }
     }
+    // Shuffle so that showing fewer flowers thins every patch evenly.
+    const order = Array.from({ length: n }, (_, i) => i);
+    for (let i = n - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+    for (const im of [heads, centres, stems]) {
+      const src = im.instanceMatrix.array.slice(0, n * 16);
+      order.forEach((from, to) => im.instanceMatrix.array.set(src.subarray(from * 16, from * 16 + 16), to * 16));
+      im.instanceMatrix.needsUpdate = true;
+    }
+    {
+      const src = heads.instanceColor.array.slice(0, n * 3);
+      order.forEach((from, to) => heads.instanceColor.array.set(src.subarray(from * 3, from * 3 + 3), to * 3));
+      heads.instanceColor.needsUpdate = true;
+    }
     heads.count = centres.count = stems.count = n;
+    meadow = { meshes: [heads, centres, stems], total: n };
     heads.castShadow = true;
     group.add(heads, centres, stems);
   }
@@ -1198,6 +1213,8 @@ export function buildHaven(world, { say }) {
     door: doorApi,
     setLightFocus,
     setTimeOfDay,
+    // 0..1: how full the wildflower meadows are
+    setFlowerDensity(f) { for (const m of meadow.meshes) m.count = Math.round(meadow.total * f); },
     nest,
     chest: chestApi,
     anchors: {

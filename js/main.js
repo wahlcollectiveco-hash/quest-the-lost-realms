@@ -27,6 +27,7 @@ import {
 } from './rewards.js';
 import { $, $$, esc, say, tell, celebrate, hideCelebrate } from './ui/common.js';
 import { createAbilities, ABILITY_LINES } from './world/abilities.js';
+import { createFlowerTrail } from './world/trail.js';
 import { havenWalkable } from './world/haven.js';
 import { valeWalkable } from './world/vale.js';
 import { prefersReducedMotion } from './ui/settings.js';
@@ -35,6 +36,19 @@ const world = createWorld($('#world'));
 const haven = buildHaven(world, { say });
 const vale = buildVale(world);
 const abilities = createAbilities(world);
+// Pebble leaves flowers where she walks and sits; the meadows stay calmer for her.
+const trail = createFlowerTrail(world, {
+  getDragon: () => {
+    const screen = document.body.dataset.screen;
+    return companion?.def.id === 'pebble' && screen !== 'select' && screen !== 'welcome' ? companion : null;
+  },
+  getGroundY: () => (where === 'vale' ? VALE_CENTER.y : 0),
+});
+function applyMeadow() {
+  const f = state.dragon === 'pebble' ? 0.3 : 0.6;
+  haven.setFlowerDensity(f);
+  vale.setFlowerDensity(f);
+}
 audio.init(settings());
 applySettings({ world, audio });
 
@@ -155,6 +169,7 @@ function placeLineup() {
 
 function startSelection() {
   director.stop();
+  trail.clear();
   if (companion) { despawn(companion); companion = null; }
   setScreen('select');
   world.controls.enabled = false;
@@ -284,6 +299,7 @@ function enterHaven(flyIn = true) {
       say(pickLine(def.lines.tap), 3400);
     }
   });
+  applyMeadow();
   $('#haven-sub').textContent = `Verdant Vale · with ${def.name}`;
   document.body.dataset.dragonName = def.name;
   if (!questUIReady) {

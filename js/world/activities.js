@@ -14,7 +14,7 @@ export const ACTIVITY_LINES = {
   nest: (n) => `${n} is tidying the nest around the egg.`,
   exploring: (n) => `${n} is exploring the paths of Verdant Vale.`,
   reading: (n) => `${n} is reading an old book of star maps.`,
-  treasure: (n) => `${n} is admiring its tiny treasure box.`,
+  treasure: (n) => `${n} is admiring a tiny treasure box.`,
   napping: (n) => `${n} curls up for a cozy nap.`,
 };
 
