@@ -36,11 +36,12 @@ const world = createWorld($('#world'));
 const haven = buildHaven(world, { say });
 const vale = buildVale(world);
 const abilities = createAbilities(world);
-// Pebble leaves flowers where she walks and sits; the meadows stay calmer for her.
+// Each dragon leaves a little trail where they walk and rest: Pebble flowers,
+// Ember flames, Moon clouds and sparkles. (Meadows stay calmer for Pebble.)
 const trail = createFlowerTrail(world, {
   getDragon: () => {
     const screen = document.body.dataset.screen;
-    return companion?.def.id === 'pebble' && screen !== 'select' && screen !== 'welcome' ? companion : null;
+    return companion && screen !== 'select' && screen !== 'welcome' ? companion : null;
   },
   getGroundY: () => (where === 'vale' ? VALE_CENTER.y : 0),
 });
@@ -313,7 +314,7 @@ function enterHaven(flyIn = true) {
         const line = {
           low: `${n} curls up beside you. Small steps count today.`,
           okay: `${n} nods. A steady day it is.`,
-          good: `${n} stretches its wings, ready when you are.`,
+          good: `${n} stretches, ready when you are.`,
           full: `${n} is buzzing with excitement. Let's go!`,
         }[level];
         companion?.react(level === 'low' ? 'tilt' : 'hop');

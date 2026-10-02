@@ -69,13 +69,13 @@ export const DRAGONS = {
       tap: [
         'Moon blinks sleepily at you.',
         'Moon is counting the clouds.',
-        'Moon curls its tail and hums.',
+        'Moon curls her tail and hums.',
         'Moon glances at the Ancient Door, thoughtful.',
       ],
       complete: [
         'Moon’s scales shimmer softly.',
         'Moon gives a sleepy, pleased little chirp.',
-        'Moon traces a star in the air with its tail.',
+        'Moon traces a star in the air with her tail.',
       ],
     },
   },
