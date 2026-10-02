@@ -45,6 +45,16 @@ function isOpen(x, z, pad = 0) {
   return true;
 }
 
+// Where a dragon can stand in the Vale (world coordinates).
+export function valeWalkable(wx, wz) {
+  const x = wx - VALE_CENTER.x, z = wz - VALE_CENTER.z;
+  if (Math.hypot(x, z) > RI - 1.6) return false;
+  const near = (p, r) => Math.hypot(x - p[0], z - p[1]) < r;
+  if (near(L.pool, L.poolR + 0.5) || near(L.cliff, 3.4) || near(L.hollow, 1.9) || near(L.glade, 1.4)) return false;
+  if (L.stones.some((s) => near(s, 0.9))) return false;
+  return true;
+}
+
 function flowTexture(base = '#62b3c4') {
   const [c, g] = canvas(64, 256);
   g.fillStyle = base;

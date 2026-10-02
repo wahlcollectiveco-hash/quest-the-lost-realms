@@ -60,6 +60,7 @@ export function createWorld(canvas) {
   }
   let probeFrames = 5; // check the first frames only; getError stalls the GPU
   const render = () => {
+    if (canvas.width < 2 || canvas.height < 2) return; // nothing to draw into (hidden or zero-size window)
     if (composer) {
       composer.render();
       if (probeFrames > 0) {
@@ -172,8 +173,28 @@ export function createWorld(canvas) {
     const held = performance.now() - down.t;
     down = null;
     if (moved > 8 || held > 600) return;
-    hitAt(e.clientX, e.clientY)?.userData.onTap();
+    const hit = hitAt(e.clientX, e.clientY);
+    const now = performance.now();
+    // Two quick taps on open ground: ask the dragon to walk there.
+    if (!hit && lastTap && now - lastTap.t < 360 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 44) {
+      lastTap = null;
+      doubleTapHandler?.(e.clientX, e.clientY);
+      return;
+    }
+    lastTap = hit ? null : { x: e.clientX, y: e.clientY, t: now };
+    hit?.userData.onTap();
   });
+  let lastTap = null;
+  let doubleTapHandler = null;
+  // Where a screen point meets the ground (a flat plane at height planeY).
+  function groundPoint(x, y, planeY = 0) {
+    const r = canvas.getBoundingClientRect();
+    ndc.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    const t = (planeY - ray.ray.origin.y) / ray.ray.direction.y;
+    if (!(t > 0)) return null;
+    return ray.ray.origin.clone().addScaledVector(ray.ray.direction, t);
+  }
   let lastHover = 0;
   canvas.addEventListener('pointermove', (e) => {
     if (e.buttons || e.pointerType !== 'mouse') return;
@@ -194,6 +215,8 @@ export function createWorld(canvas) {
     setOffset(x, y) { offset.tx = x; offset.ty = y; },
     follow(obj) { followObj = obj; },
     setReducedMotion(v) { reducedMotion = v; },
+    onDoubleTap(fn) { doubleTapHandler = fn; },
+    groundPoint,
     // Where a point in the world lands on screen (CSS pixels).
     toScreen(v) {
       const p = v.clone().project(camera);

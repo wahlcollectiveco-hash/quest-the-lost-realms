@@ -278,6 +278,7 @@ export function createDragon(def) {
     let hop = 0;
     let flap = 0;
     let tilt = 0;
+    let nod = 0;
     if (action) {
       action.t += dt;
       const a = action.t;
@@ -296,6 +297,19 @@ export function createDragon(def) {
         const p = Math.min(1, a / 1.2);
         tilt = Math.sin(Math.PI * p) * 0.35;
         if (p >= 1) action = null;
+      } else if (action.kind === 'breathe') {
+        // rear back, then lean forward and blow
+        const p = Math.min(1, a / 1.8);
+        nod = p < 0.25 ? -0.45 * (p / 0.25) : -0.45 + 0.7 * Math.min(1, (p - 0.25) / 0.15);
+        if (p > 0.85) nod *= (1 - p) / 0.15;
+        flap = 0.25 * Math.sin(Math.PI * p);
+        if (p >= 1) action = null;
+      } else if (action.kind === 'float') {
+        const p = Math.min(1, a / 2.6);
+        hop = Math.sin(Math.PI * p) * 0.7 + Math.sin(a * 3) * 0.04;
+        flap = Math.sin(a * 6) * 0.3 * Math.sin(Math.PI * p);
+        tilt = Math.sin(a * 1.5) * 0.08;
+        if (p >= 1) action = null;
       }
     }
     rig.position.y = hop + Math.abs(Math.sin(t * 9)) * 0.07 * walk - 0.42 * lie;
@@ -307,7 +321,7 @@ export function createDragon(def) {
     head.position.z = 0.26 + 0.22 * headDown + 0.15 * lie;
     head.rotation.y = (0.28 * Math.sin(t * 0.33) + 0.12 * Math.sin(t * 0.91)) * wander + Math.sin(t * 1.6) * 0.45 * sweep;
     head.rotation.x = 0.04 * Math.sin(t * 1.7 - 0.6) - 0.05 + 0.75 * headDown + 0.5 * lie
-      + Math.max(0, Math.sin(t * 7)) * 0.14 * nibble - 0.35 * fly;
+      + Math.max(0, Math.sin(t * 7)) * 0.14 * nibble - 0.35 * fly + nod;
     head.rotation.z = tilt;
 
     tailJoints.forEach((j, i) => {

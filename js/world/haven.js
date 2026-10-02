@@ -126,6 +126,15 @@ function isOpenGround(x, z, pad = 0) {
   return true;
 }
 
+// Where a dragon can stand in the Haven (world coordinates).
+export function havenWalkable(x, z) {
+  if (Math.hypot(x, z) > ISLAND_R - 1.2) return false;
+  const near = (p, r) => Math.hypot(x - p[0], z - p[1]) < r;
+  if (near(L.pond, L.pondR + 0.5) || near(L.cottage, 2.3) || near(L.nest, 1.0) || near(L.cliff, 3.2) || near(L.chest, 0.8)) return false;
+  if (Math.abs(x - L.door[0]) < 3.5 && z < L.door[1] + 1.9) return false; // the Door and its steps
+  return true;
+}
+
 // Verdant Vale floats off beyond the Ancient Door (see vale.js).
 export const VALE_CENTER = new V(-12, -3, -100);
 const VALE_ANGLE = Math.atan2(VALE_CENTER.z, VALE_CENTER.x);

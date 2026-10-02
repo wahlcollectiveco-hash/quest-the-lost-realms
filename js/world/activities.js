@@ -457,6 +457,14 @@ export function createActivityDirector(world, haven) {
       await faceCamera(tk);
     },
 
+    // Walk to a spot the player double-tapped, then wait there.
+    async walkTo(tk, point) {
+      await settle(tk);
+      await walk(tk, point);
+      await sleep(tk, 0.4);
+      await faceCamera(tk);
+    },
+
     async home(tk) {
       await settle(tk);
       await walk(tk, home);
@@ -492,6 +500,7 @@ export function createActivityDirector(world, haven) {
     goHome: (d) => run('home', d),
     travel: (d, target) => run('travel', d, target),
     visit: (d, to, look) => run('visit', d, { to, look }),
+    walkTo: (d, point) => run('walkTo', d, point),
     stop,
   };
 }

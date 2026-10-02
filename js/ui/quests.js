@@ -73,27 +73,15 @@ export function initQuestUI({ onComplete, onStartFocus, onEnergy, onGo, onHatch 
 
   $('#today-date').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 
+  // (The daily energy check-in used to live here. It now only appears, as an
+  // optional question, inside Choose My Next Quest, where it actually matters.)
   function toolsHTML(openCount) {
-    const e = todaysEnergy();
     let html = '';
     if (eggReady()) {
       html += `<button class="hatch-ready" data-tool="hatch">${SPARK}<span>Your egg is ready to hatch!</span></button>`;
     }
-    if (!e) {
-      html += `<div class="energy-card">
-        <p class="energy-q">How are you feeling today?</p>
-        <div class="energy-options">
-          ${ENERGY.map((x) => `<button data-energy="${x.v}">${pips(x.n)}<span>${x.label}</span></button>`).join('')}
-        </div>
-        <button class="link-btn" data-energy="skip">Skip for today</button>
-      </div>`;
-    }
     if (openCount) {
       html += `<button class="choose-next" data-tool="next">${SPARK}<span>Choose My Next Quest</span></button>`;
-    }
-    if (e?.level) {
-      const x = ENERGY.find((y) => y.v === e.level);
-      html += `<p class="energy-line">${pips(x.n)} Energy today: <b>${x.label}</b> <button class="link-btn" data-energy="change">change</button></p>`;
     }
     return html ? `<div class="panel-tools">${html}</div>` : '';
   }
@@ -127,7 +115,7 @@ export function initQuestUI({ onComplete, onStartFocus, onEnergy, onGo, onHatch 
 
   // Bring one Quest into view with a soft glow.
   function spotlight(id) {
-    panel.dataset.open = 'true';
+    if (getSheet() === 'peek') setSheet('half');
     const li = list.querySelector(`.quest[data-id="${id}"]`);
     if (!li) return;
     li.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -142,14 +130,6 @@ export function initQuestUI({ onComplete, onStartFocus, onEnergy, onGo, onHatch 
   }, true);
 
   list.addEventListener('click', (e) => {
-    const energyBtn = e.target.closest('[data-energy]');
-    if (energyBtn) {
-      const v = energyBtn.dataset.energy;
-      if (v === 'change') { state.energy = null; render(); return; }
-      setEnergy(v === 'skip' ? null : v);
-      if (v !== 'skip') onEnergy?.(v);
-      return;
-    }
     if (e.target.closest('[data-tool="next"]')) return openNext();
     if (e.target.closest('[data-tool="hatch"]')) return onHatch?.();
 
@@ -167,13 +147,58 @@ export function initQuestUI({ onComplete, onStartFocus, onEnergy, onGo, onHatch 
 
   $('#new-quest').addEventListener('click', () => openForm());
 
-  // Mobile bottom sheet toggle
+  // ---- The panel as a sheet you can pull up, down, or out of the way ----
+  //   peek — tucked away so the world is in full view
+  //   half — the usual size
+  //   full — tall, for long lists (phones only)
   const toggle = $('#panel-toggle');
-  toggle.addEventListener('click', () => {
-    const open = panel.dataset.open !== 'true';
-    panel.dataset.open = String(open);
-    toggle.setAttribute('aria-expanded', String(open));
+  const isPhone = () => window.innerWidth < 820;
+  const getSheet = () => panel.dataset.sheet || 'half';
+  function setSheet(s) {
+    if (s === 'full' && !isPhone()) s = 'half';
+    panel.dataset.sheet = s;
+    document.body.dataset.sheet = s;
+    panel.style.height = '';
+    toggle.setAttribute('aria-expanded', String(s !== 'peek'));
+  }
+  setSheet(getSheet());
+  $('#panel-reopen').addEventListener('click', () => setSheet('half'));
+
+  // Drag the top of the panel (phones). A simple tap toggles it.
+  const head = $('.panel-head', panel);
+  let drag = null;
+  head.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('button:not(.panel-grip)')) return;
+    drag = { y: e.clientY, h: panel.offsetHeight, moved: false, onGrip: !!e.target.closest('.panel-grip') };
+    head.setPointerCapture(e.pointerId);
   });
+  head.addEventListener('pointermove', (e) => {
+    if (!drag || !isPhone()) return;
+    const dy = e.clientY - drag.y;
+    if (Math.abs(dy) > 6) drag.moved = true;
+    if (!drag.moved) return;
+    panel.classList.add('dragging');
+    panel.style.height = `${Math.max(44, Math.min(window.innerHeight * 0.9, drag.h - dy))}px`;
+  });
+  const endDrag = (e) => {
+    if (!drag) return;
+    const d = drag;
+    drag = null;
+    panel.classList.remove('dragging');
+    if (!d.moved || !isPhone()) {
+      // tap: tuck away, or bring back
+      // (on a computer only the little handle does this, not the whole header)
+      if (e.type === 'pointerup' && (isPhone() || d.onGrip)) setSheet(getSheet() === 'peek' ? 'half' : 'peek');
+      return;
+    }
+    const h = panel.offsetHeight;
+    const vh = window.innerHeight;
+    const snaps = { peek: 48, half: vh * 0.46, full: vh * 0.88 };
+    const nearest = Object.entries(snaps).sort((a, b) => Math.abs(a[1] - h) - Math.abs(b[1] - h))[0][0];
+    setSheet(nearest);
+  };
+  head.addEventListener('pointerup', endDrag);
+  head.addEventListener('pointercancel', endDrag);
 
   // ---- Choose My Next Quest ----
   function openNext() {
@@ -598,5 +623,5 @@ export function initQuestUI({ onComplete, onStartFocus, onEnergy, onGo, onHatch 
     render();
   }, 60_000);
 
-  return { openTemplates, openNext };
+  return { openTemplates, openNext, setSheet, getSheet };
 }

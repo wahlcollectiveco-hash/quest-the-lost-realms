@@ -7,6 +7,7 @@ export const DEFAULT_SETTINGS = {
   ambient: true,
   ambientVol: 0.5,
   timeOfDay: true,
+  clips: true,
   reduceMotion: false,
   largeText: false,
 };
@@ -30,7 +31,8 @@ const ROWS = [
   ['sfx', 'Sound effects', 'Soft chimes when you finish things and find things.'],
   ['ambient', 'Nature sounds', 'Wind, water, birds by day and crickets by night.'],
   ['timeOfDay', 'Match my time of day', 'The Haven follows your clock: dawn, day, dusk and a cozy night.'],
-  ['reduceMotion', 'Reduce motion', 'Shorter camera moves and calmer animations.'],
+  ['clips', 'Celebration clips', 'Zoom in on your dragon and your rewards when you finish a Quest.'],
+  ['reduceMotion', 'Reduce motion', 'Shorter camera moves, calmer animations, and no celebration clips.'],
   ['largeText', 'Larger text', 'Makes the words throughout the app bigger.'],
 ];
 

@@ -25,11 +25,16 @@ import { byId, inHaven } from './data/discoveries.js';
 import {
   rewardQuest, eggFraction, eggPalette, eggReady, eggStage, hatchEgg, foundOf, openChest, grant,
 } from './rewards.js';
-import { $, $$, esc, say, celebrate } from './ui/common.js';
+import { $, $$, esc, say, tell, celebrate, hideCelebrate } from './ui/common.js';
+import { createAbilities, ABILITY_LINES } from './world/abilities.js';
+import { havenWalkable } from './world/haven.js';
+import { valeWalkable } from './world/vale.js';
+import { prefersReducedMotion } from './ui/settings.js';
 
 const world = createWorld($('#world'));
 const haven = buildHaven(world, { say });
 const vale = buildVale(world);
+const abilities = createAbilities(world);
 audio.init(settings());
 applySettings({ world, audio });
 
@@ -64,7 +69,7 @@ STONES.forEach((_, i) => vale.setStone(i, stoneState(i)));
 // Camera views. Distance grows on narrow screens so things still fit.
 const VIEWS = {
   intro: { dir: [0.55, 0.42, 0.72], dist: 30, target: [0, 1, -1.5], fit: 0.9 },
-  select: { dir: [0, 0.3, 1], dist: 11.5, target: [0, 0.35, 5.0], fit: 1.25 },
+  select: { dir: [0, 0.2, 1], dist: 9.2, target: [0, 0.75, 5.0], fit: 0.62 },
   haven: { dir: [0.08, 0.5, 0.88], dist: 25, target: [-0.3, 0.9, -1.6], fit: 0.85 },
   vale: { dir: [0.06, 0.55, 0.84], dist: 33, target: [VALE_CENTER.x, VALE_CENTER.y + 0.8, VALE_CENTER.z + 0.5], fit: 0.85 },
 };
@@ -92,9 +97,11 @@ function updateOffset() {
   const screen = document.body.dataset.screen;
   if (screen === 'focus') return world.setOffset(0, $('#focus-card').offsetHeight / 2.2);
   if (screen !== 'haven') return world.setOffset(0, 0);
-  if (window.innerWidth >= 820) world.setOffset((panel.offsetWidth + 24) / 2, 0);
-  else world.setOffset(0, Math.min(panel.offsetHeight, window.innerHeight * 0.6) / 2.2);
+  const tucked = panel.dataset.sheet === 'peek';
+  if (window.innerWidth >= 820) world.setOffset(tucked ? 0 : (panel.offsetWidth + 24) / 2, 0);
+  else world.setOffset(0, tucked ? 0 : Math.min(panel.offsetHeight, window.innerHeight * 0.6) / 2.2);
 }
+new MutationObserver(updateOffset).observe($('#quest-panel'), { attributes: true, attributeFilter: ['data-sheet'] });
 const panelObserver = new ResizeObserver(updateOffset);
 panelObserver.observe($('#quest-panel'));
 panelObserver.observe($('#focus-card'));
@@ -135,54 +142,97 @@ $('#begin').addEventListener('click', () => {
   startSelection();
 });
 
-// ---- 2. Choose your companion ----
-let chosen = null;
+// ---- 2. Choose your companion: a carousel, one dragon at a time ----
+const SLIDE_GAP = 7; // world distance between dragons on the row
+const MOVE_NAMES = { pebble: 'Flower bloom', ember: 'Fire breath', moon: 'Starlight float' };
+let slideIndex = 0; // which dragon is in front
+let slide = 0; // the same, but fractional while sliding
+const inSelect = () => document.body.dataset.screen === 'select';
+
+function placeLineup() {
+  lineup.forEach((d, i) => d.root.position.set((i - slide) * SLIDE_GAP, 0, 5));
+}
+
 function startSelection() {
   director.stop();
   if (companion) { despawn(companion); companion = null; }
   setScreen('select');
   world.controls.enabled = false;
   world.controls.autoRotate = false;
-  const spots = haven.anchors.select;
-  lineup = DRAGON_ORDER.map((id, i) => {
-    const d = spawn(id, spots[i]);
-    d.root.lookAt(spots[i].x * 0.3, 0, 14);
-    world.onTap(d.root, () => choose(id));
+  slideIndex = Math.max(0, DRAGON_ORDER.indexOf(state.dragon));
+  slide = slideIndex;
+  lineup = DRAGON_ORDER.map((id) => {
+    const d = spawn(id, new THREE.Vector3());
+    d.root.rotation.y = 0;
+    world.onTap(d.root, () => { if (lineup[slideIndex] === d) showOff(); });
     return d;
   });
-  chosen = null;
-  renderCards();
-  goTo('select', 2.2);
+  placeLineup();
+  renderDragonInfo();
+  goTo('select', 2.2).then(showOff);
 }
 
-function renderCards() {
-  $('#dragon-cards').innerHTML = DRAGON_ORDER.map((id) => {
-    const d = DRAGONS[id];
-    return `<button class="dragon-card ${chosen === id ? 'on' : ''}" role="radio" aria-checked="${chosen === id}" data-id="${id}">
-      <span class="swatch">${d.swatch.map((c) => `<i style="background:${c}"></i>`).join('')}</span>
-      <span class="name">${esc(d.name)}</span>
-      <span class="trait">${esc(d.trait)}</span>
-      <span class="blurb">${esc(d.blurb)}</span>
-    </button>`;
-  }).join('');
-  const btn = $('#confirm-dragon');
-  btn.disabled = !chosen;
-  btn.textContent = chosen ? `Choose ${DRAGONS[chosen].name}` : 'Choose a dragon';
+function renderDragonInfo() {
+  const d = DRAGONS[DRAGON_ORDER[slideIndex]];
+  $('#dragon-info').innerHTML = `
+    <span class="name">${esc(d.name)}</span>
+    <span class="trait">${esc(d.trait)}</span>
+    <span class="blurb">${esc(d.blurb)}</span>
+    <span class="move">Special move: <b>${MOVE_NAMES[d.id]}</b></span>
+    <span class="pager">${slideIndex + 1} of ${DRAGON_ORDER.length}</span>`;
+  $('#prev-dragon').disabled = slideIndex === 0;
+  $('#next-dragon').disabled = slideIndex === DRAGON_ORDER.length - 1;
+  $('#confirm-dragon').textContent = `Choose ${d.name}`;
 }
-$('#dragon-cards').addEventListener('click', (e) => {
-  const card = e.target.closest('.dragon-card');
-  if (card) choose(card.dataset.id);
+
+// The dragon in front shows what it can do.
+function showOff() {
+  if (!inSelect() || !lineup.length) return;
+  const d = lineup[slideIndex];
+  abilities.perform(d);
+  say(ABILITY_LINES[d.def.id](d.def.name), 3400);
+}
+
+function goToSlide(i) {
+  i = Math.max(0, Math.min(DRAGON_ORDER.length - 1, i));
+  const changed = i !== slideIndex;
+  slideIndex = i;
+  renderDragonInfo();
+  const from = slide;
+  world.tween(0.45, (p) => { slide = from + (i - from) * p; placeLineup(); }, easeOut).then(() => { if (changed) showOff(); });
+}
+$('#prev-dragon').addEventListener('click', () => goToSlide(slideIndex - 1));
+$('#next-dragon').addEventListener('click', () => goToSlide(slideIndex + 1));
+document.addEventListener('keydown', (e) => {
+  if (!inSelect()) return;
+  if (e.key === 'ArrowLeft') goToSlide(slideIndex - 1);
+  if (e.key === 'ArrowRight') goToSlide(slideIndex + 1);
 });
-function choose(id) {
-  if (document.body.dataset.screen !== 'select') return;
-  chosen = id;
-  renderCards();
-  lineup.find((d) => d.def.id === id)?.react('hop');
-  say(DRAGONS[id].lines.select, 3000);
+
+// Swipe left or right, on the scene or on the info card.
+let swipe = null;
+for (const el of [$('#world'), $('#dragon-info')]) {
+  el.addEventListener('pointerdown', (e) => { if (inSelect()) swipe = { x: e.clientX, start: slide }; });
 }
+window.addEventListener('pointermove', (e) => {
+  if (!swipe || !inSelect()) return;
+  const dx = e.clientX - swipe.x;
+  if (Math.abs(dx) < 6) return;
+  slide = Math.max(-0.25, Math.min(DRAGON_ORDER.length - 0.75, swipe.start - dx / (window.innerWidth * 0.7)));
+  placeLineup();
+});
+window.addEventListener('pointerup', (e) => {
+  if (!swipe) return;
+  const dx = e.clientX - swipe.x;
+  swipe = null;
+  if (!inSelect() || Math.abs(dx) < 6) return;
+  // a decent flick moves one dragon over; otherwise settle on the nearest
+  goToSlide(Math.abs(dx) > 50 ? slideIndex + (dx < 0 ? 1 : -1) : Math.round(slide));
+});
 
 $('#confirm-dragon').addEventListener('click', async () => {
-  if (!chosen) return;
+  if (!lineup.length) return;
+  const chosen = DRAGON_ORDER[slideIndex];
   const first = !state.dragon && state.quests.length === 0;
   setDragon(chosen);
   const keep = lineup.find((d) => d.def.id === chosen);
@@ -224,8 +274,15 @@ function enterHaven(flyIn = true) {
     companion = spawn(state.dragon, haven.anchors.home);
   }
   world.onTap(companion.root, () => {
-    companion.react(Math.random() < 0.5 ? 'hop' : 'tilt');
-    say(pickLine(def.lines.tap), 3200);
+    if (busy) return;
+    // Sometimes it shows off its special move; otherwise a little reaction.
+    if (where === 'haven' && Math.random() < 0.4) {
+      abilities.perform(companion);
+      say(ABILITY_LINES[def.id](def.name), 3400);
+    } else {
+      companion.react(Math.random() < 0.5 ? 'hop' : 'tilt');
+      say(pickLine(def.lines.tap), 3400);
+    }
   });
   $('#haven-sub').textContent = `Verdant Vale · with ${def.name}`;
   document.body.dataset.dragonName = def.name;
@@ -273,35 +330,172 @@ function completionLine() {
     : pickLine(def.lines.complete);
 }
 
-// Completing a Quest: celebrate, warm the egg, and sometimes discover something.
-function onComplete(q, { focusMinutes = 0, prefix = '' } = {}) {
-  companion?.react('celebrate');
-  sfx.complete();
-  if (companion) garden.sparkle(companion.root.position, 20);
-  const r = rewardQuest(q, { focusMinutes });
-  let eggLine = '';
+// ---- Celebration clips ----
+// Finishing a Quest plays a short "clip": the camera zooms in on your dragon
+// doing its special move, then on the egg warming, then on any reward as it
+// appears. Clips can be skipped, and can be turned off in Settings.
+let clipPlaying = false;
+let clipsWaiting = 0; // clips playing or queued
+let clipSkip = false;
+let clipChain = Promise.resolve();
+const calmQueue = [];
+// Run something once no clip is playing (so news never talks over a clip).
+function whenCalm(fn) {
+  if (clipsWaiting > 0) calmQueue.push(fn);
+  else setTimeout(fn, 500);
+}
+const clipsOn = () => settings().clips !== false && !prefersReducedMotion();
+const cwait = (ms) => (clipSkip ? Promise.resolve() : wait(ms));
+const cfly = (pos, target, dur) => world.flyTo(pos, target, clipSkip ? 0.05 : dur);
+$('#clip-skip').addEventListener('click', () => { clipSkip = true; });
+
+// Camera spot for looking at something in the Haven: from the front of the
+// island (the open side), a little to the right, looking slightly down.
+// It tries a few angles and takes the first with a clear line of sight (not
+// through your dragon, the cottage, or off the island).
+function lookAtSpot(pos, dist = 5, ignoreDragon = false) {
+  const k = dist / 5;
+  const angles = [[1.0, 4.5], [-2.4, 4.0], [3.2, 3.4], [-3.8, 2.8], [4.2, 2.0], [0, 4.6]];
+  const blockers = [{ x: -5.6, z: -2.8, r: 2.9 }]; // the cottage
+  if (companion && !ignoreDragon) blockers.push({ x: companion.root.position.x, z: companion.root.position.z, r: 1.5 });
+  const clear = (cx, cz) => {
+    if (Math.hypot(cx, cz) > 13) return false;
+    return blockers.every((b) => {
+      // distance from the blocker to the camera→target line
+      const dx = pos.x - cx, dz = pos.z - cz;
+      const t = Math.max(0, Math.min(1, ((b.x - cx) * dx + (b.z - cz) * dz) / (dx * dx + dz * dz)));
+      return Math.hypot(cx + dx * t - b.x, cz + dz * t - b.z) > b.r || Math.hypot(pos.x - b.x, pos.z - b.z) < 0.5;
+    });
+  };
+  const [ox, oz] = angles.find(([x, z]) => clear(pos.x + x * k, pos.z + z * k)) || angles[0];
+  return [[pos.x + ox * k, pos.y + 2.1 * k, pos.z + oz * k], [pos.x, pos.y + 0.55, pos.z]];
+}
+
+// Show each reward "in action", then its card (which waits for a tap).
+async function showRewards(items, { zoom = true } = {}) {
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const cinematic = zoom && where === 'haven';
+    if (cinematic && inHaven(it)) {
+      await cfly(...lookAtSpot(garden.positionOf(it.id)), 1.2);
+      garden.place(it.id, true);
+    } else if (cinematic && it.kind === 'treasure') {
+      await cfly(...lookAtSpot(garden.pilePosition(), 3.8), 1.2);
+      garden.setTreasures(foundOf('treasure').length);
+      garden.popTreasure(it.color);
+    } else if (cinematic && companion) {
+      // keys, map pieces and story fragments: the dragon digs them up
+      const p = companion.root.position;
+      await cfly(...lookAtSpot(p, 4.2), 1.0);
+      companion.setPose({ headDown: 1, nibble: 1 });
+      await cwait(1300);
+      companion.setPose({});
+      companion.react('hop');
+      garden.sparkle(p, 30);
+    } else if (inHaven(it)) {
+      garden.place(it.id, true);
+    }
+    sfx.discovery();
+    await cwait(900);
+    await collection.showDiscovery(it, { more: i < items.length - 1 });
+  }
+  garden.setTreasures(foundOf('treasure').length);
+}
+
+// Rewards found outside of finishing a Quest (the chest, hidden spots in the Vale).
+async function reveal(items) {
+  if (!items.length) return;
+  if (where !== 'haven') return showRewards(items, { zoom: false });
+  clipsWaiting++;
+  clipChain = clipChain.then(async () => {
+    beginClip();
+    await showRewards(items);
+    endClip();
+  });
+  return clipChain;
+}
+
+function beginClip() {
+  clipPlaying = true;
+  clipSkip = false;
+  busy = true;
+  setScreen('clip');
+  world.controls.enabled = false;
+  director.stop();
+}
+function endClip() {
+  hideCelebrate();
+  setScreen('haven');
+  world.controls.enabled = true;
+  goTo('haven', clipSkip ? 0.4 : 1.4);
+  if (companion) faceCamera(companion);
+  busy = false;
+  clipPlaying = false;
+  clipsWaiting = Math.max(0, clipsWaiting - 1);
+  refreshDoor(true);
+  if (clipsWaiting === 0) while (calmQueue.length) setTimeout(calmQueue.shift(), 900);
+}
+
+async function completionClip(q, r, prefix) {
+  beginClip();
+  celebrate(q.title, prefix.trim(), 0);
+  const def = DRAGONS[state.dragon];
+  // 1. your dragon, up close, doing its special move
+  const p = companion.root.position;
+  const ry = companion.root.rotation.y;
+  const f = new THREE.Vector3(Math.sin(ry), 0, Math.cos(ry));
+  await cfly([p.x + f.x * 5 + f.z * 0.9, p.y + 2.0, p.z + f.z * 5 - f.x * 0.9], [p.x, p.y + 1.15, p.z], 1.0);
+  const ms = abilities.perform(companion);
+  garden.sparkle(p, 20);
+  say(ABILITY_LINES[def.id](def.name), ms + 400);
+  await cwait(ms + 500);
+  // 2. the egg gets a little warmer
   if (r) {
+    const e = haven.egg.worldPosition();
+    await cfly([e.x - 1.9, 1.6, e.z + 2.9], [e.x, 0.55, e.z], 0.9);
     haven.egg.setLook(eggPalette().egg, eggFraction());
     haven.egg.pulse();
-    eggLine = r.nowReady ? ' The egg is wiggling. It’s ready to hatch!' : ' The egg glows a little warmer.';
+    say(r.nowReady ? 'The egg is wiggling. It’s ready to hatch!' : 'The egg glows a little warmer.', 2400);
+    await cwait(1900);
   }
-  celebrate(q.title, prefix + completionLine() + eggLine, r?.item ? 3000 : 4200);
-  if (r?.item) setTimeout(() => { reveal([r.item]); refreshDoor(true); }, 3200);
-  else refreshDoor(true);
+  hideCelebrate();
+  // 3. the reward, in action
+  if (r?.item) await showRewards([r.item]);
+  endClip();
 }
 
-function reveal(items) {
-  for (const it of items) if (inHaven(it)) garden.place(it.id, true);
-  garden.setTreasures(foundOf('treasure').length);
-  companion?.react('hop');
-  sfx.discovery();
-  collection.showDiscovery(items, { onSee: (it) => showItem(it.id) });
+// Completing a Quest: celebrate, warm the egg, and sometimes discover something.
+function onComplete(q, { focusMinutes = 0, prefix = '' } = {}) {
+  const canClip = clipsOn() && where === 'haven' && companion && document.body.dataset.screen === 'haven' && !hatching;
+  const willClip = canClip || clipPlaying;
+  if (willClip) clipsWaiting++; // counted before rewards are saved, so news waits for the clip
+  const r = rewardQuest(q, { focusMinutes });
+  sfx.complete();
+  if (clipPlaying) clipSkip = true; // finishing several in a row: hurry the earlier clip along
+  if (!willClip) {
+    // The simple version: a banner, a hop, and the reward card.
+    companion?.react('celebrate');
+    if (companion) garden.sparkle(companion.root.position, 20);
+    let eggLine = '';
+    if (r) {
+      haven.egg.setLook(eggPalette().egg, eggFraction());
+      haven.egg.pulse();
+      eggLine = r.nowReady ? ' The egg is ready to hatch!' : ' The egg glows a little warmer.';
+    }
+    celebrate(q.title, prefix + completionLine() + eggLine, 4200);
+    if (r?.item) setTimeout(() => showRewards([r.item], { zoom: false }).then(() => refreshDoor(true)), 2600);
+    else refreshDoor(true);
+    return;
+  }
+  clipChain = clipChain.then(() => completionClip(q, r, prefix)).catch((e) => { console.error(e); endClip(); });
 }
 
+// "See it in the Haven" from the collection.
 function showItem(id) {
   const pos = garden.positionOf(id);
   if (!pos) return;
-  world.flyTo([pos.x + 1.6, pos.y + 2.6, pos.z + 4.6], [pos.x, pos.y + 0.5, pos.z], 1.6);
+  questUI?.setSheet('peek');
+  world.flyTo(...lookAtSpot(pos), 1.6);
   garden.sparkle(pos, 20);
 }
 
@@ -350,9 +544,9 @@ function refreshDoor(announce = true) {
   if (!fresh.length || !announce) return;
   haven.door.pulse();
   const msg = allLit()
-    ? 'All eight symbols on the Ancient Door are glowing. The Door is awake… go and see.'
-    : `A symbol on the Ancient Door lights up: “${RUNES[fresh[0]].name}.”`;
-  setTimeout(() => say(msg, 5200), 4600);
+    ? 'All eight symbols on the Ancient Door are glowing. The Door is awake! Tap it to see.'
+    : `A new symbol on the Ancient Door just lit up: “${RUNES[fresh[0]].name}.” Tap the Door to see them all.`;
+  whenCalm(() => tell(msg));
 }
 
 function showDoorPanel() {
@@ -400,9 +594,8 @@ async function travelToVale() {
   busy = false;
   const first = markVisited();
   const n = DRAGONS[state.dragon].name;
-  say(first
-    ? `Welcome to Verdant Vale. ${n} sniffs the air. There may be things hidden here… tap around.`
-    : `${n} is happy to be back in Verdant Vale.`, 5200);
+  if (first) tell(`Welcome to Verdant Vale! Things are hidden here. Tap anything that looks interesting, and double-tap the ground to send ${n} walking.`);
+  else say(`${n} is happy to be back in Verdant Vale.`);
   refreshDoor(true);
 }
 
@@ -489,17 +682,18 @@ vale.targets.stones.forEach((obj, i) => {
     if (st === 'awake') return say(`The ${name} glows steadily, humming with the Door.`);
     if (st === 'dormant') {
       const k = questsUntilStone(i);
-      return say(`The ${name} is cold. Its symbol flickers faintly. It will wake after ${k} more finished ${k === 1 ? 'Quest' : 'Quests'}.`, 5200);
+      return tell(`The ${name} is still asleep. It will wake up after you finish ${k} more ${k === 1 ? 'Quest' : 'Quests'}.`);
     }
     wakeStone(i);
     say(`The ${name} awakens!`, 2600);
     companion?.react('celebrate');
+    sfx.moment();
     await vale.awakenStone(i);
     refreshDoor(false);
     haven.door.pulse();
-    say(allLit()
-      ? 'Far away, the last symbol on the Ancient Door lights up. The Door is awake… go and see.'
-      : 'Far away, a symbol on the Ancient Door begins to glow.', 5200);
+    tell(allLit()
+      ? 'Back in the Haven, the last symbol on the Ancient Door just lit up. The Door is awake! Go home and tap it.'
+      : `Back in the Haven, a new symbol on the Ancient Door just lit up: “${name}.”`);
   });
 });
 
@@ -512,6 +706,8 @@ const story = createStory({
   getCompanion: () => companion,
   getWhere: () => where,
   say,
+  tell,
+  whenCalm,
   sparkle: garden.sparkle,
   onBegin(id) {
     id === 'door-waking' || id === 'new-realm' ? sfx.door() : sfx.moment();
@@ -554,7 +750,7 @@ async function hatchSequence() {
   hatchlings.rename(c.id, name);
   await wait(500);
   await haven.egg.appear(eggPalette().egg);
-  say('Another egg has appeared in the nest. This one hums a different tune.', 4500);
+  tell('A new egg has appeared in the nest. Keep finishing Quests to warm this one too.');
   refreshDoor(true);
   setScreen('haven');
   world.controls.enabled = true;
@@ -580,13 +776,46 @@ const focus = createFocus({
   },
 });
 
+// ---- Double-tap the ground: your dragon walks there ----
+const ripple = new THREE.Mesh(
+  new THREE.RingGeometry(0.34, 0.42, 32),
+  new THREE.MeshBasicMaterial({ color: '#fff0c2', transparent: true, opacity: 0, depthWrite: false })
+);
+ripple.rotation.x = -Math.PI / 2;
+world.scene.add(ripple);
+
+world.onDoubleTap((sx, sy) => {
+  const screen = document.body.dataset.screen;
+  if (busy || touring || !companion || (screen !== 'haven' && screen !== 'vale')) return;
+  const inVale = where === 'vale';
+  const groundY = inVale ? VALE_CENTER.y : 0;
+  const walkable = inVale ? valeWalkable : havenWalkable;
+  const target = world.groundPoint(sx, sy, groundY);
+  if (!target) return;
+  // If that exact spot isn't somewhere a dragon can stand (the pond, a
+  // building, off the edge), go as close as possible along the way there.
+  const from = companion.root.position;
+  let spot = null;
+  for (let k = 1; k >= 0.1; k -= 0.05) {
+    const x = from.x + (target.x - from.x) * k, z = from.z + (target.z - from.z) * k;
+    if (walkable(x, z)) { spot = new THREE.Vector3(x, groundY, z); break; }
+  }
+  if (!spot) return;
+  director.walkTo(companion, spot);
+  ripple.position.set(spot.x, groundY + 0.05, spot.z);
+  world.tween(0.9, (p) => {
+    ripple.scale.setScalar(0.6 + p * 1.6);
+    ripple.material.opacity = 0.9 * (1 - p);
+  }, (p) => p);
+});
+
 // ---- Welcome tour ----
 let touring = false;
 async function startTour() {
   if (touring || document.body.dataset.screen !== 'haven') return;
   touring = true;
   const name = DRAGONS[state.dragon].name;
-  $('#quest-panel').dataset.open = 'true';
+  questUI?.setSheet('half');
   const eggRect = () => {
     const p = world.toScreen(haven.egg.worldPosition());
     return p.visible ? { x: p.x - 44, y: p.y - 50, w: 88, h: 88 } : null;
@@ -594,7 +823,7 @@ async function startTour() {
   await runTour([
     { title: `Welcome to Dragon Haven`, text: `This is ${name}’s home. It grows and changes as you get things done in your real life.` },
     { title: 'Quests', text: 'Anything you need to do, big or small, is a Quest. Templates save time for things you do again and again.', target: () => rectOf($('#new-quest')) },
-    { title: 'Stuck?', text: 'Choose My Next Quest picks one thing for you, based on how much time and energy you have.', target: () => rectOf($('.choose-next')) || rectOf($('#quest-list')) },
+    { title: 'Stuck?', text: 'Choose My Next Quest picks one thing for you, based on how much time you have.', target: () => rectOf($('.choose-next')) || rectOf($('#quest-list')) },
     { title: 'The egg', text: 'Finishing Quests warms the egg and sometimes uncovers treasures. No points, no streaks. Just little surprises.', target: eggRect, round: true },
     { title: 'Exploring', text: 'Fly to Verdant Vale, see your treasures, and find settings up here.', target: () => rectOf($('#vale-btn'), $('#collection-btn'), $('#menu-btn')) },
     { title: 'One rule', text: `This works best when you leave the app and go do the thing. ${name} will be right here when you get back.` },

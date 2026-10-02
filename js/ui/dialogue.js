@@ -35,7 +35,7 @@ export function talk({ who, name, lines }) {
           <p class="dlg-name">${esc(name)}</p>
           <p class="dlg-text">${esc(lines[i])}</p>
           <div class="dlg-actions">
-            <button class="btn ${last ? 'ghost' : 'primary'} small" data-dlg="${last ? 'close' : 'next'}">${last ? 'Goodbye' : 'Next'}</button>
+            <button class="btn ${last ? 'ghost' : 'primary'} small" data-dlg="${last ? 'close' : 'next'}">${last ? 'Got it' : 'Next'}</button>
           </div>
         </div>`;
       box.querySelector('button').focus({ preventScroll: true });
@@ -66,12 +66,19 @@ export function talk({ who, name, lines }) {
 export const isTalking = () => $('#dialogue').classList.contains('show');
 
 // ---- Letterbox for Story Moments ----
+// Story text stays on screen until you tap Next, so there's time to read.
+let pendingNext = null;
 export const letterbox = {
   on(onSkip) {
     const el = $('#story-bars');
     $('#story-text').textContent = '';
+    $('#story-next').hidden = true;
     el.classList.add('show');
-    $('#story-skip').onclick = onSkip;
+    $('#story-skip').onclick = () => {
+      onSkip();
+      pendingNext?.();
+    };
+    $('#story-next').onclick = () => pendingNext?.();
   },
   text(t) {
     const p = $('#story-text');
@@ -80,7 +87,22 @@ export const letterbox = {
     p.textContent = t;
     p.classList.add('in');
   },
+  // Resolves when the reader taps Next.
+  next() {
+    return new Promise((resolve) => {
+      const btn = $('#story-next');
+      btn.hidden = false;
+      btn.focus({ preventScroll: true });
+      pendingNext = () => {
+        pendingNext = null;
+        btn.hidden = true;
+        sfx.talk();
+        resolve();
+      };
+    });
+  },
   off() {
+    pendingNext = null;
     $('#story-bars').classList.remove('show');
   },
 };

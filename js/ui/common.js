@@ -5,26 +5,67 @@ export function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// Short, low-interruption caption at the bottom of the scene.
+// Captions at the edge of the scene. Two kinds:
+//   say(text)  — a passing remark. Fades on its own (longer text stays longer); tap to dismiss.
+//   tell(text) — something worth reading. Stays until you tap Next; several queue up in order.
 let captionTimer;
-export function say(text, ms = 4600) {
+let stickyShowing = false;
+const tellQueue = [];
+
+function showCaption(text, sticky) {
   const el = $('#caption');
-  el.textContent = text;
+  const more = tellQueue.length > 0;
+  el.innerHTML = `<span class="cap-text">${esc(text)}</span>${sticky ? `<button class="btn primary small cap-next">${more ? 'Next' : 'Got it'}</button>` : ''}`;
+  el.classList.toggle('sticky', sticky);
   el.classList.add('show');
+  stickyShowing = sticky;
   clearTimeout(captionTimer);
-  captionTimer = setTimeout(() => el.classList.remove('show'), ms);
 }
 
+function hideCaption() {
+  $('#caption').classList.remove('show');
+  stickyShowing = false;
+  clearTimeout(captionTimer);
+}
+
+function nextTell() {
+  if (!tellQueue.length) return hideCaption();
+  showCaption(tellQueue.shift(), true);
+}
+
+export function say(text, ms) {
+  if (stickyShowing || tellQueue.length) return; // never talk over something you're still reading
+  showCaption(text, false);
+  captionTimer = setTimeout(hideCaption, ms ?? Math.max(4200, 1800 + text.length * 70));
+}
+
+export function tell(text) {
+  tellQueue.push(text);
+  if (!stickyShowing) nextTell();
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest?.('#caption')) return;
+  if (stickyShowing) nextTell();
+  else hideCaption();
+});
+
+// A small "Quest Complete" banner shown over the celebration clip.
 let celebrateTimer;
-export function celebrate(title, line, ms = 4200) {
+export function celebrate(title, line = '', ms = 4200) {
   const el = $('#celebrate');
   $('h3', el).textContent = title;
   $('.line', el).textContent = line;
+  $('.line', el).hidden = !line;
   el.classList.remove('show');
   void el.offsetWidth; // restart the animation
   el.classList.add('show');
   clearTimeout(celebrateTimer);
-  celebrateTimer = setTimeout(() => el.classList.remove('show'), ms);
+  if (ms) celebrateTimer = setTimeout(() => el.classList.remove('show'), ms);
+}
+export function hideCelebrate() {
+  clearTimeout(celebrateTimer);
+  $('#celebrate').classList.remove('show');
 }
 
 export function openModal(html, { className = '', label = 'Dialog' } = {}) {

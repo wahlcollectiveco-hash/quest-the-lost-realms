@@ -47,11 +47,15 @@
   <section id="select" class="screen" aria-labelledby="select-title">
     <header class="select-head">
       <h2 id="select-title">Choose your companion</h2>
-      <p>A little dragon to keep you company on every Quest.</p>
+      <p>Swipe to meet each dragon.</p>
     </header>
     <div class="select-foot">
-      <div class="dragon-cards" id="dragon-cards" role="radiogroup" aria-label="Dragons"></div>
-      <button class="btn primary big" id="confirm-dragon" disabled>Choose a dragon</button>
+      <div class="carousel">
+        <button class="icon-btn arrow" id="prev-dragon" aria-label="Previous dragon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <div class="dragon-info" id="dragon-info" aria-live="polite"></div>
+        <button class="icon-btn arrow" id="next-dragon" aria-label="Next dragon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+      </div>
+      <button class="btn primary big" id="confirm-dragon">Choose</button>
     </div>
   </section>
 
@@ -86,7 +90,8 @@
     </header>
 
     <!-- 4. Today's Quests -->
-    <aside class="quest-panel" id="quest-panel" data-open="true" aria-labelledby="quests-title">
+    <button class="btn ghost panel-reopen" id="panel-reopen">Today's Quests</button>
+    <aside class="quest-panel" id="quest-panel" data-sheet="half" aria-labelledby="quests-title">
       <div class="panel-head">
         <button class="panel-grip" id="panel-toggle" aria-label="Show or hide Today's Quests" aria-expanded="true"><span></span></button>
         <div class="panel-title">
@@ -137,6 +142,7 @@
     </div>
   </section>
 
+  <button class="btn ghost small" id="clip-skip">Skip</button>
   <div id="caption" class="caption" role="status" aria-live="polite"></div>
   <div id="celebrate" class="celebrate" aria-live="polite">
     <p class="eyebrow">Quest Complete</p>
@@ -148,7 +154,7 @@
   <div id="dialogue" class="dialogue" role="dialog" aria-live="polite" aria-label="Conversation"></div>
   <div id="story-bars" class="story-bars" aria-live="polite">
     <div class="bar top"><button class="link-btn" id="story-skip">Skip</button></div>
-    <div class="bar bottom"><p id="story-text"></p></div>
+    <div class="bar bottom"><p id="story-text"></p><button class="btn primary small" id="story-next" hidden>Next</button></div>
   </div>
   <div id="tour" class="tour" role="dialog" aria-label="Welcome tour">
     <div class="tour-spot" hidden></div>

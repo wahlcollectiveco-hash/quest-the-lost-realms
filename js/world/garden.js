@@ -332,10 +332,39 @@ export function createGarden(world, haven) {
     scene.add(obj);
     placed.set(id, obj);
     if (animate) {
+      // Pop in with a bounce, a wobble and a warm glow, so it's easy to spot.
       obj.scale.setScalar(0.001);
-      world.tween(1.3, (p) => obj.scale.setScalar(Math.max(0.001, p)), easeOut);
-      sparkle(obj.position);
+      const light = new THREE.PointLight('#ffd98a', 0, 7, 2);
+      light.position.set(x, y + 1.2, z + 0.6);
+      scene.add(light);
+      world.tween(1.6, (p) => {
+        const pop = p < 0.6 ? easeOut(p / 0.6) * 1.15 : 1.15 - 0.15 * ((p - 0.6) / 0.4);
+        obj.scale.setScalar(Math.max(0.001, pop));
+        obj.rotation.z = Math.sin(p * 26) * 0.07 * (1 - p);
+        light.intensity = Math.sin(Math.PI * p) * 9;
+      }, (p) => p).then(() => { obj.rotation.z = 0; obj.scale.setScalar(1); scene.remove(light); });
+      sparkle(obj.position, 44);
     }
+  }
+
+  // A treasure pops up out of the pile by the chest, glints, and settles.
+  function popTreasure(color = '#f2b441') {
+    const gem = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.2, 0),
+      new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.9, roughness: 0.2, metalness: 0.3 })
+    );
+    const light = new THREE.PointLight('#ffd98a', 0, 6, 2);
+    const base = pile.position.clone();
+    scene.add(gem, light);
+    sparkle(base, 40);
+    return world.tween(2.6, (p) => {
+      const up = p < 0.35 ? easeOut(p / 0.35) : 1;
+      gem.position.set(base.x, base.y + 0.25 + up * 1.0 + Math.sin(p * 9) * 0.04, base.z);
+      gem.rotation.y = p * 9;
+      gem.scale.setScalar(p > 0.85 ? Math.max(0.001, 1 - (p - 0.85) / 0.15) : 1);
+      light.position.copy(gem.position);
+      light.intensity = Math.sin(Math.PI * p) * 8;
+    }, (p) => p).then(() => { scene.remove(gem, light); });
   }
 
   // Treasure pile by the old chest.
@@ -370,5 +399,5 @@ export function createGarden(world, haven) {
     if (bath) bath.userData.bird.rotation.y = Math.sin(t * 0.7) > 0.6 ? 0.8 : -0.3;
   });
 
-  return { place, positionOf, sparkle, setTreasures };
+  return { place, positionOf, sparkle, setTreasures, popTreasure, pilePosition: () => pile.position.clone() };
 }

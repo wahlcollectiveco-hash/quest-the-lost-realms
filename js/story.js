@@ -56,15 +56,15 @@ const QUILL_AMBIENT = [
 ];
 
 const HAZEL_INTRO = [
-  'Oh! Hello! I’m Hazel. I live between here and the Vale. Mostly under bushes.',
-  'If you ever want to know what’s going on over there, just ask me. I hear everything.',
+  'Hi! I’m Hazel. I live nearby, and I visit Verdant Vale almost every day.',
+  'Tap me any time and I’ll tell you what’s worth checking out.',
 ];
 const HAZEL_AMBIENT = [
-  'I found a very good stick today. Don’t tell anyone where.',
-  'Your dragon’s been napping in the sun. Excellent habit.',
-  'The butterflies in the Vale are gossiping about you. Good gossip, don’t worry.',
-  'The stream’s running fast today. Something’s waking up, I think.',
-  'Have you had some water today? Foxes forget too.',
+  'Nothing new to report right now. Finish a Quest and I bet something will change!',
+  'Your dragon has been napping in the sun today. Looks cozy.',
+  'It’s a quiet day in the Vale. The butterflies say hello.',
+  'Have you had some water today? I always forget too.',
+  'Tip: double-tap the ground and your dragon will walk there.',
 ];
 
 const LUNE_LORE = [
@@ -98,7 +98,7 @@ function glowSprite(color = 'rgba(255,230,160,1)') {
   return new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
 }
 
-export function createStory({ world, haven, vale, director, getCompanion, getWhere, say, sparkle, onBegin, onEnd }) {
+export function createStory({ world, haven, vale, director, getCompanion, getWhere, say, tell, whenCalm, sparkle, onBegin, onEnd }) {
   const { scene } = world;
   const S = state.story;
   const comp = () => getCompanion();
@@ -198,6 +198,9 @@ export function createStory({ world, haven, vale, director, getCompanion, getWhe
   // ---- Moment state ----
   const pending = (id) => !momentSeen(id) && !!MOMENTS[id].when?.();
 
+  // News worth reading waits its turn (after any celebration) and stays until tapped.
+  const announce = (msg) => whenCalm(() => { if (getWhere() === 'haven') tell(msg); });
+
   function check() {
     for (const id of Object.keys(markers)) {
       const p = pending(id);
@@ -205,7 +208,7 @@ export function createStory({ world, haven, vale, director, getCompanion, getWhe
       if (p && !S.announced[id]) {
         S.announced[id] = true;
         save();
-        setTimeout(() => { if (getWhere() === 'haven' && !playing) say(MOMENTS[id].announce, 5200); }, 5800);
+        announce(MOMENTS[id].announce);
       }
     }
     flowerTarget = momentSeen('strange-flower') ? 0.35 : pending('strange-flower') ? 1 : 0;
@@ -217,7 +220,7 @@ export function createStory({ world, haven, vale, director, getCompanion, getWhe
         S.announced.hazel = true;
         save();
         sparkle(hazel.root.position, 24);
-        setTimeout(() => say('Someone is peeking out from the bushes by the stream…', 5000), 5800);
+        announce('A fox is peeking out from the bushes by the stream. Tap her to say hello!');
       }
     }
   }
@@ -228,7 +231,8 @@ export function createStory({ world, haven, vale, director, getCompanion, getWhe
   const wait = (ms) => (skipping ? Promise.resolve() : new Promise((r) => setTimeout(r, ms)));
   const d = (sec) => (skipping ? 0.05 : sec);
   const cam = (pos, target, sec) => world.flyTo(pos, target, d(sec));
-  const text = async (t, ms) => { letterbox.text(t); await wait(ms); };
+  // Story text waits for the reader to tap Next (the old timings are ignored).
+  const text = async (t) => { letterbox.text(t); if (!skipping) await letterbox.next(); };
   const doorPos = () => haven.door.object.position;
 
   const SCRIPTS = {
@@ -253,7 +257,7 @@ export function createStory({ world, haven, vale, director, getCompanion, getWhe
       await drift;
       runeSprite.visible = false;
       haven.door.pulse();
-      await wait(2600);
+      if (!skipping) await letterbox.next();
       await text('…and settles into the stone, as if it had always belonged there.', 3400);
     },
 
@@ -336,19 +340,19 @@ export function createStory({ world, haven, vale, director, getCompanion, getWhe
   function hazelLines() {
     if (!S.met.hazel) { S.met.hazel = true; save(); return HAZEL_INTRO; }
     const hints = [
-      [pending('strange-flower'), 'Have you seen the flower by the Door? It’s glowing just like the Door does. Spooky. Nice spooky.'],
-      [pending('mysterious-egg'), 'Your egg was glowing funny last night. The symbols on it, I mean. Go and look!'],
-      [pending('door-waking'), 'The Door’s been rumbling. I felt it right through my paws.'],
-      [eggReady(), 'Your egg is wiggling like mad! I think someone wants out.'],
-      [state.found['mossy-key'] && !state.chestOpened, 'That mossy key you found… I bet it fits the old chest by the Door.'],
-      [!valeUnlocked(), 'The mist over the Vale is thick today. Maybe it’ll clear after you finish a Quest.'],
-      [!state.realm.visited, 'Have you been to Verdant Vale yet? Your dragon can fly you there. Try the little mountain button up top.'],
-      [!S.met.quill, 'There’s an old dragon in the Vale ruins called Quill. Knows every story ever. Bit of a talker.'],
-      [STONES.some((_, i) => stoneState(i) === 'ready'), 'One of the rune stones in the Vale is humming! You should go and touch it.'],
-      [!state.realm.hidden.grotto, 'The waterfall in the Vale has been sparkling strangely. Like something’s hiding behind it.'],
-      [!state.realm.hidden.hollow, 'Something shiny is in the big hollow tree in the Vale. The owls won’t tell me what.'],
-      [!state.realm.hidden.glade, 'There’s a thick wall of bushes on the west side of the Vale. I swear I heard giggling behind it.'],
-      [!state.found['story-mural'], 'Old Quill spends all day by the carvings in the ruins. Ever looked at them up close?'],
+      [pending('strange-flower'), 'The little white flower on the path to the Door has started glowing. Tap the flower to take a closer look!'],
+      [pending('mysterious-egg'), 'The symbols on your egg are glowing. Tap the egg to see what’s happening.'],
+      [pending('door-waking'), 'The Ancient Door is shaking! Tap the Door to see why.'],
+      [eggReady(), 'Your egg is ready to hatch! Tap the egg in the nest.'],
+      [state.found['mossy-key'] && !state.chestOpened, 'You found the Mossy Key! Tap the old chest next to the Door to open it.'],
+      [!valeUnlocked(), 'Verdant Vale is covered in mist right now. Finish one Quest and the way will open.'],
+      [!state.realm.visited, 'You can visit Verdant Vale now. Tap the mountain button at the top of the screen and your dragon will fly you there.'],
+      [!S.met.quill, 'An old dragon named Quill lives in the ruins in Verdant Vale. Tap Quill to hear stories about the Door.'],
+      [STONES.some((_, i) => stoneState(i) === 'ready'), 'One of the rune stones in Verdant Vale is ready to wake up. Fly there and tap the glowing stone.'],
+      [!state.realm.hidden.grotto, 'Something is hidden behind the big waterfall in Verdant Vale. Try tapping the waterfall.'],
+      [!state.realm.hidden.hollow, 'There’s something shiny inside the big hollow tree in Verdant Vale. Tap the tree to look inside.'],
+      [!state.realm.hidden.glade, 'A thick wall of bushes on the left side of Verdant Vale is hiding something. Tap the bushes.'],
+      [!state.found['story-mural'], 'The carvings in the Vale ruins tell an old story. Tap them to read it.'],
     ];
     const hint = hints.find(([ok]) => ok);
     return [hint && Math.random() < 0.8 ? hint[1] : pickOne(HAZEL_AMBIENT)];
@@ -407,7 +411,7 @@ export function createStory({ world, haven, vale, director, getCompanion, getWhe
     if (!S.announced.lune) {
       S.announced.lune = true;
       save();
-      setTimeout(() => say('Something small and glowing is watching you… see if you can spot it.', 5000), 1500);
+      announce('A small glowing moth has appeared somewhere nearby. See if you can spot it, then tap it!');
     }
   }
   function hideLune(flyAway = true) {

@@ -168,14 +168,16 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay 
 
   // ---- Discovery reveal ----
   const card = $('#discovery');
-  let hideTimer = null;
+  let resolveCard = null;
   function hideDiscovery() {
     card.classList.remove('show');
-    clearTimeout(hideTimer);
+    resolveCard?.();
+    resolveCard = null;
   }
-  function showDiscovery(items, { onSee } = {}) {
-    const list = Array.isArray(items) ? items : [items];
-    const it = list[0];
+  // Shows one discovery and waits until it's tapped. The card sits low on the
+  // screen so the thing itself stays visible in the world above it.
+  function showDiscovery(it, { more = false } = {}) {
+    hideDiscovery();
     const name = getDragonName();
     const eyebrow = {
       treasure: `${name} found a treasure!`,
@@ -193,23 +195,17 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay 
       <p class="disc-desc ${it.kind === 'story' ? 'story' : ''}">${esc(it.kind === 'story' ? it.text : it.desc)}</p>
       ${mapDone ? '<p class="disc-desc">The map is complete! A dotted path leads beyond the Ancient Door…</p>' : ''}
       <div class="disc-actions">
-        ${inHaven(it) && onSee ? '<button class="btn ghost small" data-disc="see">See it</button>' : ''}
-        <button class="btn primary small" data-disc="ok">${list.length > 1 ? 'Next' : 'Lovely'}</button>
-      </div>
-      <button class="link-btn" data-disc="collection">Open Hatch &amp; Treasures</button>`;
+        <button class="btn primary" data-disc="ok">${more ? 'Next' : inHaven(it) ? 'Nice!' : 'Collect'}</button>
+      </div>`;
     card.classList.remove('show');
     void card.offsetWidth;
     card.classList.add('show');
-    clearTimeout(hideTimer);
-    hideTimer = setTimeout(hideDiscovery, 14000);
-    card.onclick = (e) => {
-      const act = e.target.closest('[data-disc]')?.dataset.disc;
-      if (!act) return;
-      hideDiscovery();
-      if (act === 'see') onSee?.(it);
-      if (act === 'collection') open(it.kind === 'treasure' ? 'treasures' : inHaven(it) ? 'garden' : 'lore');
-      if (act === 'ok' && list.length > 1) setTimeout(() => showDiscovery(list.slice(1), { onSee }), 350);
-    };
+    return new Promise((resolve) => {
+      resolveCard = resolve;
+      card.onclick = (e) => {
+        if (e.target.closest('[data-disc="ok"]')) hideDiscovery();
+      };
+    });
   }
 
   // ---- New hatchling card ----
