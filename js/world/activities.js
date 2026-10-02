@@ -183,7 +183,7 @@ function makeBloom(color, r = 0.05) {
 }
 
 // A ring of little flowers that sits on a dragon's head.
-function makeCrown() {
+export function makeCrown() {
   const g = new THREE.Group();
   const colors = ['#f6c7d6', '#f3d46c', '#cdb6ec', '#ffffff', '#f19a78', '#a9d6f7'];
   const n = 10;

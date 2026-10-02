@@ -5,7 +5,7 @@
 - Build 3: reusable Quest templates, Choose My Next Quest, daily energy check-in.
 - Build 4: egg warmth and hatching, baby dragons, discoveries (treasures, flowers, decorations, keys, map fragments, story fragments), Hatch & Treasures collection.
 - Build 5: Verdant Vale (a second island to fly to and explore, with hidden spots and three rune stones), the Ancient Door's eight symbols, and the Door opening to glimpse the next realm.
-- Build 6: Hazel (woodland fox, gives hints), Quill (Dragon Historian in the Vale ruins), Lune (the moth-like wanderer), and Story Moments: the Strange Flower, the Mysterious Egg, the Door Stirs, A Glimpse Beyond.
+- Build 6: Hazel (woodland fox, gives hints), Quill (Dragon Historian in the Vale ruins), Lune (a small glowing bird who wanders), and Story Moments: the Strange Flower, the Mysterious Egg, the Door Stirs, A Glimpse Beyond.
 - Build 7: time of day (dawn, day, dusk, night), gentle generated sound (nature ambience + chimes), Settings (sound, time of day, reduce motion, larger text), a first-time welcome tour, home-screen icon + web manifest.
 
 ## Run it

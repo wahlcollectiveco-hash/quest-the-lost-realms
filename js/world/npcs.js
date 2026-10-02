@@ -1,6 +1,6 @@
 // The three side characters, as soft placeholder models:
-// Quill the Dragon Historian, Hazel the woodland fox, and Lune, the moth-like
-// wanderer who turns up in strange places.
+// Quill the Dragon Historian, Hazel the woodland fox, and Lune, the small
+// glowing bird who turns up in strange places.
 import * as THREE from 'three';
 import { toon } from './style.js';
 import { createDragon } from './dragon.js';
@@ -124,63 +124,87 @@ export function createFox() {
   return { root, update, react(kind) { if (kind === 'spin') spin = 0; else hop = 0; } };
 }
 
-// ---- Lune, the moth-like wanderer ----
-function wingTexture(front) {
+// ---- Lune, the wanderer: a small glowing bird with long tail feathers ----
+// (She used to be a moth, but she got lost among the Haven's butterflies.)
+function featherTexture() {
   const c = document.createElement('canvas');
-  c.width = c.height = 128;
+  c.width = 128;
+  c.height = 64;
   const g = c.getContext('2d');
-  const grad = g.createRadialGradient(20, 64, 4, 40, 64, 110);
-  grad.addColorStop(0, '#fff6ff');
-  grad.addColorStop(0.45, front ? '#cdb8f5' : '#b9c8f5');
-  grad.addColorStop(1, 'rgba(150,130,220,0.15)');
+  const grad = g.createLinearGradient(0, 0, 128, 0);
+  grad.addColorStop(0, '#ffffff');
+  grad.addColorStop(0.6, '#dfe8ff');
+  grad.addColorStop(1, 'rgba(190,205,255,0.2)');
   g.fillStyle = grad;
+  // a wing: rounded at the shoulder, three feather tips at the end
   g.beginPath();
-  if (front) g.ellipse(64, 64, 62, 42, -0.2, 0, TAU);
-  else g.ellipse(60, 64, 46, 38, 0.3, 0, TAU);
+  g.moveTo(2, 30);
+  g.quadraticCurveTo(40, -6, 124, 10);
+  g.quadraticCurveTo(100, 22, 116, 30);
+  g.quadraticCurveTo(92, 36, 102, 48);
+  g.quadraticCurveTo(60, 60, 2, 40);
+  g.closePath();
   g.fill();
-  g.fillStyle = 'rgba(255,245,210,0.95)';
-  g.shadowColor = '#fff0c0';
-  g.shadowBlur = 10;
-  g.beginPath(); g.arc(front ? 78 : 64, 58, front ? 10 : 7, 0, TAU); g.fill();
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
 
-export function createMoth() {
+export function createLune() {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
-  const glow = new THREE.MeshStandardMaterial({ color: 0xe8ddff, emissive: 0xb9a4ff, emissiveIntensity: 1.2, roughness: 0.4 });
-  add(body, new THREE.CapsuleGeometry(0.035, 0.16, 4, 8), glow, [0, 0, 0], [Math.PI / 2, 0, 0]);
-  add(body, new THREE.SphereGeometry(0.04, 10, 8), glow, [0, 0.01, 0.11]);
-  for (const sx of [-1, 1]) {
-    add(body, new THREE.CylinderGeometry(0.004, 0.004, 0.14, 4), glow, [0.03 * sx, 0.07, 0.16], [0.9, 0, -0.35 * sx]);
-  }
+  const glow = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xcfdcff, emissiveIntensity: 1.1, roughness: 0.5 });
+  const gold = new THREE.MeshStandardMaterial({ color: 0xf2c96a, emissive: 0xe0a83a, emissiveIntensity: 0.5, roughness: 0.4 });
+  add(body, new THREE.SphereGeometry(0.075, 14, 12), glow, [0, 0, 0], [0, 0, 0], [0.9, 0.9, 1.35]);
+  add(body, new THREE.SphereGeometry(0.055, 14, 12), glow, [0, 0.055, 0.1]);
+  add(body, new THREE.ConeGeometry(0.018, 0.05, 6), gold, [0, 0.05, 0.165], [Math.PI / 2, 0, 0]);
+  const dark = new THREE.MeshBasicMaterial({ color: 0x2a2440 });
+  for (const sx of [-1, 1]) add(body, new THREE.SphereGeometry(0.011, 6, 5), dark, [0.034 * sx, 0.068, 0.138]);
+  // a tiny crest
+  add(body, new THREE.ConeGeometry(0.012, 0.06, 5), gold, [0, 0.115, 0.08], [-0.5, 0, 0]);
+
+  const tex = featherTexture();
+  const wingMat = new THREE.MeshStandardMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, depthWrite: false, emissive: 0xd6e2ff, emissiveMap: tex, emissiveIntensity: 0.9, roughness: 0.5 });
   const wings = [];
-  for (const [front, z, w, h] of [[true, 0.02, 0.34, 0.26], [false, -0.08, 0.24, 0.2]]) {
-    const mat = new THREE.MeshStandardMaterial({ map: wingTexture(front), transparent: true, side: THREE.DoubleSide, depthWrite: false, emissive: 0xcbb8ff, emissiveMap: wingTexture(front), emissiveIntensity: 0.9, roughness: 0.5 });
-    for (const sx of [-1, 1]) {
-      const geo = new THREE.PlaneGeometry(w, h);
-      geo.translate(w / 2, 0, 0);
-      geo.rotateX(-Math.PI / 2);
-      const wing = new THREE.Mesh(geo, mat);
-      wing.position.z = z;
-      wing.scale.x = sx;
-      body.add(wing);
-      wings.push({ wing, sx, front });
-    }
+  for (const sx of [-1, 1]) {
+    const geo = new THREE.PlaneGeometry(0.3, 0.15);
+    geo.translate(0.15, 0, 0);
+    geo.rotateX(-Math.PI / 2);
+    const wing = new THREE.Mesh(geo, wingMat);
+    wing.position.set(0.03 * sx, 0.03, 0.01);
+    wing.scale.x = sx;
+    body.add(wing);
+    wings.push({ wing, sx });
   }
-  const light = new THREE.PointLight(0xcdb8ff, 2.5, 5, 2);
+  // two long tail feathers that trail and sway
+  const tails = [];
+  for (const sx of [-1, 1]) {
+    const geo = new THREE.PlaneGeometry(0.34, 0.06);
+    geo.translate(0.17, 0, 0);
+    geo.rotateX(-Math.PI / 2);
+    geo.rotateY(Math.PI / 2); // point backwards
+    const tail = new THREE.Mesh(geo, wingMat);
+    tail.position.set(0.012 * sx, 0, -0.08);
+    body.add(tail);
+    tails.push({ tail, sx });
+  }
+  const light = new THREE.PointLight(0xdbe6ff, 2.5, 5, 2);
   root.add(light);
-  root.scale.setScalar(2.1);
+  root.scale.setScalar(2.4);
 
   let fade = 1;
   function update(t) {
-    body.position.y = 0.05 * Math.sin(t * 1.8);
-    body.rotation.y = 0.4 * Math.sin(t * 0.5);
-    const f = 0.25 + 0.7 * Math.abs(Math.sin(t * 5));
-    for (const w of wings) w.wing.rotation.z = w.sx * (w.front ? f : f * 0.8);
+    body.position.y = 0.06 * Math.sin(t * 1.6);
+    body.rotation.y = 0.5 * Math.sin(t * 0.45);
+    body.rotation.x = 0.12 * Math.sin(t * 1.6 + 1);
+    // unhurried wingbeats, nothing like a butterfly's flutter
+    const f = 0.15 + 0.75 * (0.5 + 0.5 * Math.sin(t * 6.5));
+    for (const w of wings) w.wing.rotation.z = w.sx * (f - 0.35);
+    for (const w of tails) {
+      w.tail.rotation.y = w.sx * 0.12 + 0.14 * Math.sin(t * 2.2 + w.sx);
+      w.tail.rotation.x = 0.25 + 0.1 * Math.sin(t * 1.8 + w.sx);
+    }
     light.intensity = (2.2 + 0.5 * Math.sin(t * 2)) * fade;
   }
   return {

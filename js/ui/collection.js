@@ -5,6 +5,7 @@ import { CATALOG, KINDS, inHaven } from '../data/discoveries.js';
 import { paletteById } from '../data/creatures.js';
 import { eggFraction, eggNeed, eggPalette, eggReady, eggStage, renameCreature } from '../rewards.js';
 import { $, esc, openModal } from './common.js';
+import { raising, wishCard, wishBaby } from '../wishes.js';
 import { MOMENTS, momentSeen } from '../story.js';
 
 const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
@@ -26,6 +27,62 @@ export function iconFor(item, found = true) {
   return `<svg class="icon" viewBox="0 0 48 48" aria-hidden="true">${body}${item.kind === 'key' || item.kind === 'flower' ? '' : q}</svg>`;
 }
 
+// ---- The Old Map ----
+// One drawing in four pieces. Each fragment you find reveals its quarter;
+// missing quarters stay blank. `fresh` is the piece that was just found.
+const MAP_PIECES = [
+  { id: 'map-2', x: 0, y: 0 },    // mountains and the river (top left)
+  { id: 'map-4', x: 100, y: 0 },  // the arch with a star (top right)
+  { id: 'map-1', x: 0, y: 75 },   // the Vale (bottom left)
+  { id: 'map-3', x: 100, y: 75 }, // the forest (bottom right)
+];
+const tree = (x, y, s = 1) => `<path d="M${x} ${y - 9 * s}l${5 * s} ${9 * s}h${-10 * s}z" fill="#7d9c5c" stroke="#5c7a42" stroke-width="0.6"/><path d="M${x} ${y}v${3 * s}" stroke="#7a5a36" stroke-width="1"/>`;
+const peak = (x, y, s = 1) => `<path d="M${x - 11 * s} ${y}l${11 * s} ${-18 * s}l${11 * s} ${18 * s}z" fill="#c9bfa6" stroke="#8a7a5c" stroke-width="0.8"/><path d="M${x - 3.5 * s} ${y - 12 * s}l${3.5 * s} ${-6 * s}l${3.5 * s} ${6 * s}l${-3.5 * s} ${-2 * s}z" fill="#fbf6ea"/>`;
+const MAP_ART = `
+  <!-- the river, winding north from the Vale's pool -->
+  <path d="M38 118c-6-14 10-20 4-34s-16-18-8-34s6-22 2-36" fill="none" stroke="#8fb9d6" stroke-width="3.2" stroke-linecap="round"/>
+  <!-- the Vale -->
+  <path d="M14 122c0-16 14-24 30-22s28 6 30 18s-12 20-30 20s-30-4-30-16z" fill="#b9d49a" stroke="#6f9156" stroke-width="1"/>
+  <circle cx="40" cy="120" r="5" fill="#8fb9d6" stroke="#6a9bbd" stroke-width="0.7"/>
+  ${tree(24, 122, 0.8)}${tree(58, 118, 0.8)}${tree(52, 132, 0.7)}
+  <path d="M62 126h7v-5h-7zM64 121v-3M67 121v-4" fill="#d9cdb0" stroke="#8a7a5c" stroke-width="0.7"/>
+  <text x="44" y="146" text-anchor="middle" font-size="6.5" font-style="italic" fill="#6b5330" font-family="Georgia, serif">Verdant Vale</text>
+  <!-- mountains -->
+  ${peak(70, 46, 1)}${peak(52, 52, 0.75)}${peak(86, 54, 0.7)}${peak(16, 40, 0.6)}
+  <!-- the forest -->
+  ${[[118, 96], [130, 90], [142, 98], [124, 108], [137, 110], [150, 106], [160, 96], [112, 118], [148, 120], [162, 114], [172, 104], [134, 124]].map(([x, y]) => tree(x, y)).join('')}
+  <!-- the arch, the star, and somewhere beyond -->
+  <path d="M146 50v-18a11 11 0 0122 0v18h-5v-18a6 6 0 00-12 0v18z" fill="#cfc6ae" stroke="#8a7a5c" stroke-width="0.8"/>
+  <path d="M157 8l1.8 4.4 4.7.4-3.6 3 1.1 4.6-4-2.5-4 2.5 1.1-4.6-3.6-3 4.7-.4z" fill="#e9bf55" stroke="#b98a2c" stroke-width="0.6"/>
+  <text x="157" y="62" text-anchor="middle" font-size="5.5" font-style="italic" fill="#6b5330" font-family="Georgia, serif">The Ancient Door</text>
+  <text x="186" y="14" text-anchor="middle" font-size="9" fill="#b0703f" font-family="Georgia, serif">?</text>
+  <!-- the dotted path: from the Vale, through the wood, to the Door and beyond -->
+  <path d="M70 124c16 4 26-10 42-8s18-18 30-22s10-20 14-36" fill="none" stroke="#b0703f" stroke-width="1.5" stroke-dasharray="3 3" stroke-linecap="round"/>
+  <path d="M157 30c4-8 14-10 24-16" fill="none" stroke="#b0703f" stroke-width="1.5" stroke-dasharray="3 3" stroke-linecap="round"/>
+  <!-- compass -->
+  <g transform="translate(184 132)" stroke="#8a7a5c" stroke-width="0.7" fill="none"><circle r="8"/><path d="M0-10v20M-10 0h20"/><path d="M0-8l2 8-2 8-2-8z" fill="#b0703f" stroke="none"/></g>
+  <text x="184" y="120" text-anchor="middle" font-size="5" fill="#6b5330" font-family="Georgia, serif">N</text>`;
+
+export function mapSVG(fresh = null) {
+  const found = MAP_PIECES.filter((p) => state.found[p.id]);
+  const clips = MAP_PIECES.map((p, i) => `<clipPath id="mapc${i}"><rect x="${p.x}" y="${p.y}" width="100" height="75"/></clipPath>`).join('');
+  const pieces = MAP_PIECES.map((p, i) => {
+    if (!state.found[p.id]) {
+      return `<rect x="${p.x + 3}" y="${p.y + 3}" width="94" height="69" rx="4" fill="rgba(120,100,60,0.07)" stroke="rgba(120,100,60,0.35)" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="${p.x + 50}" y="${p.y + 44}" text-anchor="middle" font-size="18" font-weight="800" fill="rgba(120,100,60,0.35)" font-family="Nunito, sans-serif">?</text>`;
+    }
+    return `<g clip-path="url(#mapc${i})" class="${p.id === fresh ? 'map-fresh' : ''}">
+      <rect x="${p.x}" y="${p.y}" width="100" height="75" fill="#f1e2bd"/>${MAP_ART}
+      <rect x="${p.x + 0.75}" y="${p.y + 0.75}" width="98.5" height="73.5" fill="none" stroke="${p.id === fresh ? '#c99a3e' : 'rgba(120,90,40,0.3)'}" stroke-width="${p.id === fresh ? 2.5 : 1}"/>
+    </g>`;
+  }).join('');
+  return `<svg class="old-map" viewBox="0 0 200 150" role="img" aria-label="The old map: ${found.length} of ${MAP_PIECES.length} pieces found">
+    <defs>${clips}</defs>
+    <rect width="200" height="150" rx="5" fill="#e9dfc6"/>
+    ${pieces}
+  </svg>`;
+}
+
 function eggSVG(tint, warmth) {
   const cracks = warmth >= 0.6 ? `<path d="M22 50l6-5-3-6 7-4-2-6" fill="none" stroke="#e7b347" stroke-width="2" opacity="${Math.min(1, (warmth - 0.6) * 2.5)}"/>` : '';
   return `<svg class="egg-svg" viewBox="0 0 80 100" aria-hidden="true">
@@ -42,6 +99,7 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay 
   let tab = 'eggs';
 
   function eggsTab() {
+    if (raising()) return raisingTab();
     const pal = eggPalette();
     const f = eggFraction();
     const ready = eggReady();
@@ -70,6 +128,36 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay 
       ${friends ? `<ul class="template-list">${friends}</ul>` : '<p class="coll-empty">No one yet. Finish Quests to keep the egg warm.</p>'}`;
   }
 
+  function friendsHTML() {
+    return state.creatures.map((c) => {
+      const p = paletteById(c.palette);
+      const date = new Date(c.hatchedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      return `<li data-creature="${c.id}">
+        <span class="baby-dot" style="background:${hex(p.body)}"></span>
+        <div class="t-info"><span class="t-name">${esc(c.name)}</span><span class="t-meta">${p.label} dragon · hatched ${date}</span></div>
+        <button class="btn ghost small" data-c="rename" data-id="${c.id}">Rename</button>
+      </li>`;
+    }).join('');
+  }
+
+  // No egg yet: the newest baby is still settling in.
+  function raisingTab() {
+    const w = wishCard();
+    const baby = wishBaby();
+    return `
+      <div class="egg-card">
+        <span class="baby-dot big" style="background:${hex(paletteById(baby?.palette).body)}"></span>
+        <div class="egg-info">
+          <p class="eyebrow">${esc(baby?.name || 'The little one')} is settling in</p>
+          <p class="egg-stage">${esc(w.text)}</p>
+          <p class="t-meta">${esc(w.progress)}</p>
+          <p class="t-meta">A new egg will appear once ${esc(baby?.name || 'the little one')} is all settled.</p>
+        </div>
+      </div>
+      <h3 class="coll-h">Hatched friends</h3>
+      <ul class="template-list">${friendsHTML()}</ul>`;
+  }
+
   function gridTab(kinds, { showHaven = false } = {}) {
     return kinds.map((kind) => {
       const items = CATALOG.filter((c) => c.kind === kind && (!c.special || state.found[c.id]));
@@ -96,9 +184,7 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay 
     const stories = CATALOG.filter((c) => c.kind === 'story' && (!c.special || state.found[c.id]));
     return `
       <h3 class="coll-h">The Old Map <span>${mapsFound} of ${maps.length}</span></h3>
-      <div class="map-grid">
-        ${maps.map((m, i) => `<div class="map-piece p${i} ${state.found[m.id] ? 'found' : ''}" title="${state.found[m.id] ? esc(m.desc) : 'Missing piece'}"></div>`).join('')}
-      </div>
+      ${mapSVG()}
       <p class="coll-note">${mapsFound === maps.length
         ? 'The map is complete. A dotted path leads from the Ancient Door toward somewhere new…'
         : 'Pieces of an old map. What does it show when it’s whole?'}</p>
@@ -188,8 +274,9 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay 
       story: 'A story fragment',
     }[it.kind];
     const mapDone = it.kind === 'map' && CATALOG.filter((c) => c.kind === 'map').every((c) => state.found[c.id]);
+    card.classList.toggle('with-map', it.kind === 'map');
     card.innerHTML = `
-      ${iconFor(it)}
+      ${it.kind === 'map' ? mapSVG(it.id) : iconFor(it)}
       <p class="eyebrow">${esc(eyebrow)}</p>
       <h3>${esc(it.name)}</h3>
       <p class="disc-desc ${it.kind === 'story' ? 'story' : ''}">${esc(it.kind === 'story' ? it.text : it.desc)}</p>

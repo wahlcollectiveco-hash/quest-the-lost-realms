@@ -25,7 +25,8 @@ import { byId, inHaven } from './data/discoveries.js';
 import {
   rewardQuest, eggFraction, eggPalette, eggReady, eggStage, eggNeed, hatchEgg, foundOf, openChest, grant,
 } from './rewards.js';
-import { $, $$, esc, say, tell, celebrate, hideCelebrate } from './ui/common.js';
+import { $, $$, esc, say, tell, ask, celebrate, hideCelebrate, pauseTells, resumeTells } from './ui/common.js';
+import { GIFTS, raising, wishBaby, wishText, eggInsight, wishProgress, startRaising } from './wishes.js';
 import { createAbilities, ABILITY_LINES } from './world/abilities.js';
 import { createFlowerTrail } from './world/trail.js';
 import { havenWalkable } from './world/haven.js';
@@ -70,7 +71,11 @@ document.addEventListener('click', (e) => {
 }, true);
 const director = createActivityDirector(world, haven);
 const garden = createGarden(world, haven);
-const hatchlings = createHatchlings(world, haven, { say });
+const hatchlings = createHatchlings(world, haven, {
+  say,
+  // the newest baby stays in the big nest until their own is built
+  isNestling: (id) => raising() && state.wish.creatureId === id,
+});
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Thought bubbles, and what happens when you tap your dragon.
@@ -86,7 +91,7 @@ const moments = createMoments({
   onNewQuest: () => $('#new-quest').click(),
   // Helping your dragon warms the egg a little (once a day).
   onFavor() {
-    if (eggReady() || hatching) return;
+    if (eggReady() || hatching || raising()) return;
     state.hatch.warmth = Math.min(eggNeed(), state.hatch.warmth + 1);
     save();
     haven.egg.setLook(eggPalette().egg, eggFraction());
@@ -100,6 +105,7 @@ for (const id of Object.keys(state.found)) if (inHaven(byId(id) || {})) garden.p
 garden.setTreasures(foundOf('treasure').length);
 for (const c of state.creatures) hatchlings.spawn(c);
 haven.egg.setLook(eggPalette().egg, eggFraction());
+if (raising()) haven.egg.setVisible(false); // a baby is settling in; the next egg comes later
 if (state.chestOpened) haven.chest.setOpen(true);
 if (state.realm.hidden.grotto) vale.revealCrystals(false);
 if (state.realm.hidden.glade) vale.openGlade(false);
@@ -450,6 +456,7 @@ async function reveal(items) {
 }
 
 function beginClip() {
+  pauseTells();
   clipPlaying = true;
   clipSkip = false;
   busy = true;
@@ -467,7 +474,10 @@ function endClip() {
   clipPlaying = false;
   clipsWaiting = Math.max(0, clipsWaiting - 1);
   refreshDoor(true);
-  if (clipsWaiting === 0) while (calmQueue.length) setTimeout(calmQueue.shift(), 900);
+  if (clipsWaiting === 0) {
+    setTimeout(resumeTells, 700);
+    while (calmQueue.length) setTimeout(calmQueue.shift(), 900);
+  }
 }
 
 async function completionClip(q, r, prefix) {
@@ -490,7 +500,7 @@ async function completionClip(q, r, prefix) {
   cfly([p.x + f.x * 3.9 + f.z * 0.5, p.y + 1.8, p.z + f.z * 3.9 - f.x * 0.5], [p.x, p.y + 1.2, p.z], (ms + 1600) / 1000);
   await cwait(ms + 1800);
   // 2. the egg gets a little warmer
-  if (r) {
+  if (r?.warmed) {
     const e = haven.egg.worldPosition();
     await cfly([e.x - 1.9, 1.6, e.z + 2.9], [e.x, 0.55, e.z], 1.8);
     await cwait(500);
@@ -516,6 +526,7 @@ function onComplete(q, { focusMinutes = 0, prefix = '' } = {}) {
   const willClip = canClip || clipPlaying;
   if (willClip) clipsWaiting++; // counted before rewards are saved, so news waits for the clip
   const r = rewardQuest(q, { focusMinutes });
+  const granted = r ? wishProgress({ quests: 1, focus: focusMinutes }) : null;
   sfx.complete();
   if (clipPlaying) clipSkip = true; // finishing several in a row: hurry the earlier clip along
   if (!willClip) {
@@ -523,7 +534,7 @@ function onComplete(q, { focusMinutes = 0, prefix = '' } = {}) {
     companion?.react('celebrate');
     if (companion) garden.sparkle(companion.root.position, 20);
     let eggLine = '';
-    if (r) {
+    if (r?.warmed) {
       haven.egg.setLook(eggPalette().egg, eggFraction());
       haven.egg.pulse();
       eggLine = r.nowReady ? ' The egg is ready to hatch!' : ' The egg glows a little warmer.';
@@ -531,9 +542,109 @@ function onComplete(q, { focusMinutes = 0, prefix = '' } = {}) {
     celebrate(q.title, prefix + completionLine() + eggLine, 4200);
     if (r?.item) setTimeout(() => showRewards([r.item], { zoom: false }).then(() => refreshDoor(true)), 2600);
     else refreshDoor(true);
+    queueWish(granted);
     return;
   }
   clipChain = clipChain.then(() => completionClip(q, r, prefix)).catch((e) => { console.error(e); endClip(); });
+  queueWish(granted);
+  // The Quest that finishes warming the egg leads straight into the hatching.
+  if (r?.nowReady) clipChain = clipChain.then(() => whenCalm(() => hatchSequence()));
+}
+
+// ---- Wishes coming true ----
+// (See wishes.js.) Each one plays as a short clip in the Haven; elsewhere, or
+// with clips turned off, it simply happens and you're told about it.
+function applyWish(g) {
+  const c = state.creatures.find((x) => x.id === g.creatureId);
+  if (g.step === 'nest') hatchlings.buildNest(c);
+  else if (g.step === 'gift') hatchlings.giveGift(c);
+  else haven.egg.appear(eggPalette().egg);
+}
+function nextWishNote() {
+  const next = wishText();
+  if (next) tell(`${DRAGONS[state.dragon].name}: “${next}”`);
+  else if (eggInsight()) tell(eggInsight());
+}
+function queueWish(g) {
+  if (!g) return;
+  const baby = state.creatures.find((x) => x.id === g.creatureId)?.name || 'The little one';
+  if (!(clipsOn() && where === 'haven' && companion && !hatching)) {
+    applyWish(g);
+    whenCalm(() => {
+      tell({
+        nest: `${baby} has a nest of their own now, in the meadow by the cottage.`,
+        gift: GIFTS[state.dragon].given(baby),
+        egg: 'A new egg has appeared in the big nest!',
+      }[g.step]);
+      nextWishNote();
+    });
+    return;
+  }
+  clipsWaiting++;
+  clipChain = clipChain.then(() => wishClip(g, baby)).catch((e) => { console.error(e); endClip(); });
+}
+
+async function wishClip(g, baby) {
+  beginClip();
+  const c = state.creatures.find((x) => x.id === g.creatureId);
+  const n = DRAGONS[state.dragon].name;
+  if (g.step === 'nest') {
+    const spot = hatchlings.nestSpot(c);
+    celebrate(`A nest for ${baby}`, '', 0, 'A wish come true');
+    director.visit(companion, new THREE.Vector3(spot.x - 1.5, 0, spot.z - 0.5), spot); // behind the nest, out of the camera's way
+    await cfly(...lookAtSpot(spot, 4.8, true), 2.2);
+    say(`${n} gathers twigs and soft moss…`, 4600);
+    await cwait(2800);
+    companion.setPose({ headDown: 0.9, sweep: 1 });
+    await cwait(2800);
+    companion.setPose({});
+    sfx.discovery();
+    garden.sparkle(spot, 30);
+    const built = hatchlings.buildNest(c);
+    await cwait(1500);
+    say(`${baby} hops over to try it out…`, 3600);
+    await built;
+    companion.react('celebrate');
+    say(`${baby} has a nest of their own!`, 4400);
+    await cwait(4000);
+  } else if (g.step === 'gift') {
+    const gift = GIFTS[state.dragon];
+    const spot = hatchlings.nestSpot(c);
+    celebrate(`A gift for ${baby}`, '', 0, 'A wish come true');
+    director.visit(companion, new THREE.Vector3(spot.x - 1.5, 0, spot.z - 0.5), spot);
+    hatchlings.gather(c);
+    await cfly(...lookAtSpot(spot, 4.4, true), 2.2);
+    say(gift.making(n), 5000);
+    await cwait(2600);
+    companion.setPose({ headDown: 0.8, sweep: 1 });
+    await cwait(3200);
+    companion.setPose({});
+    sfx.discovery();
+    hatchlings.giveGift(c);
+    garden.sparkle(hatchlings.position(c.id).add(new THREE.Vector3(0, 0.6, 0)), 30);
+    companion.react('celebrate');
+    await cwait(900);
+    say(gift.given(baby), 4800);
+    await cwait(4600);
+  } else {
+    const e = haven.anchors.nest;
+    celebrate('Something in the nest…', '', 0, 'A wish come true');
+    // your dragon comes to watch from the far side, clear of the camera
+    const walk = director.visit(companion, new THREE.Vector3(e.x + 1.8, 0, e.z + 0.3), e);
+    await Promise.race([walk, cwait(4500)]);
+    await cfly([e.x - 1.9, 1.6, e.z + 2.9], [e.x, 0.55, e.z], 2.2);
+    haven.egg.swell(clipSkip ? 0.3 : 3.4);
+    say('The big nest begins to glow…', 3600);
+    await cwait(2800);
+    sfx.hatch();
+    await haven.egg.appear(eggPalette().egg);
+    garden.sparkle(new THREE.Vector3(e.x, 0.5, e.z), 40);
+    say('A new egg!', 3600);
+    await cwait(3600);
+  }
+  hideCelebrate();
+  endClip();
+  whenCalm(nextWishNote);
 }
 
 // "See it in the Haven" from the collection.
@@ -556,6 +667,11 @@ $('#collection-btn').addEventListener('click', () => collection.open(eggReady() 
 
 world.onTap(haven.nest, () => {
   if (where !== 'haven' || busy) return;
+  if (raising()) {
+    const b = wishBaby();
+    const inBigNest = b && b.nest == null;
+    return say(inBigNest ? `${b.name} is curled up in the big nest, fast asleep.` : 'The big nest is empty for now. Something tells you it won’t be for long.', 4500);
+  }
   if (story.pending('mysterious-egg')) return story.play('mysterious-egg');
   if (eggReady()) return hatchSequence();
   haven.egg.wobble();
@@ -776,7 +892,7 @@ subscribe(() => story.check());
 
 let hatching = false;
 async function hatchSequence() {
-  if (hatching || !eggReady() || !companion) return;
+  if (hatching || !eggReady() || !companion || where !== 'haven') return;
   hatching = true;
   collection.hideDiscovery();
   setScreen('hatch');
@@ -784,26 +900,31 @@ async function hatchSequence() {
   director.stop();
   const e = haven.egg.worldPosition();
   companion.faceTowards(e.x, e.z);
-  await world.flyTo([e.x - 2.2, 2.0, e.z + 3.0], [e.x, 0.6, e.z], 1.6);
-  say('The egg is hatching…', 3000);
-  await haven.egg.shake(2.6);
+  // Unhurried, and each bit of text waits for a tap, so nothing is missed.
+  await world.flyTo([e.x - 2.2, 2.0, e.z + 3.0], [e.x, 0.6, e.z], 2.4);
+  haven.egg.wobble();
+  await ask('The egg is wiggling… it’s about to hatch!', 'Watch');
+  await haven.egg.shake(4.2);
   const c = hatchEgg();
+  startRaising(c); // no new egg yet: this little one grows up a bit first
   haven.egg.burst();
+  haven.egg.setLook(eggPalette().egg, 0); // the nest's warm glow settles
   sfx.hatch();
   garden.sparkle(e, 60);
   hatchlings.spawn(c, { pop: true });
   companion.react('celebrate');
-  await wait(1400);
+  await wait(3200);
+  await ask('A tiny dragon tumbles out of the shell, blinking at the world for the first time.');
   const name = await collection.showHatchling(c);
   hatchlings.rename(c.id, name);
-  await wait(500);
-  await haven.egg.appear(eggPalette().egg);
-  tell('A new egg has appeared in the nest. Keep finishing Quests to warm this one too.');
+  await wait(600);
+  await ask(`${name} curls up in the big nest, where it’s warm. There’s no new egg just yet. First, ${name} needs a little looking after.`);
   refreshDoor(true);
   setScreen('haven');
   world.controls.enabled = true;
-  goTo('haven', 1.8);
+  goTo('haven', 2.2);
   hatching = false;
+  nextWishNote();
 }
 
 // ---- Focus Quests ----
@@ -820,6 +941,8 @@ const focus = createFocus({
       setTimeout(() => onComplete(quest, { focusMinutes: minutes, prefix: `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} of focus. ` }), 900);
     } else {
       say(`Saved ${minutes} ${minutes === 1 ? 'minute' : 'minutes'} of focus on “${quest.title}”. Pick it up anytime.`, 5000);
+      // focus time counts toward your dragon's wish even if the Quest isn't finished yet
+      setTimeout(() => queueWish(wishProgress({ focus: minutes })), 1200);
     }
   },
 });
@@ -928,4 +1051,4 @@ setTimeout(hideLoading, 2500); // in case frames are throttled
 // Debug handle for local development only.
 story.check();
 
-if (location.hostname === 'localhost') window.quest = { story, world, director, moments, bubbles, focus, garden, haven, vale, state, reveal, hatchSequence, refreshDoor, travelToVale, returnToHaven, openDoorSequence, get companion() { return companion; } };
+if (location.hostname === 'localhost') window.quest = { story, world, director, moments, bubbles, focus, hatchlings, onComplete, garden, haven, vale, state, reveal, hatchSequence, refreshDoor, travelToVale, returnToHaven, openDoorSequence, get companion() { return companion; } };

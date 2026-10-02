@@ -15,11 +15,13 @@ export const PORTRAITS = {
     <ellipse cx="32" cy="34" rx="16" ry="14" fill="#c8683a"/><path d="M20 38q12 16 24 0q-12 6-24 0z" fill="#f4e8d4"/>
     <circle cx="26" cy="32" r="2.6" fill="#3a2a22"/><circle cx="38" cy="32" r="2.6" fill="#3a2a22"/><circle cx="32" cy="41" r="2.4" fill="#3a2a22"/>
     <path d="M18 50q14 8 28 0" stroke="#6f9c4c" stroke-width="5" fill="none" stroke-linecap="round"/></svg>`,
-  lune: `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><radialGradient id="lw"><stop offset="0" stop-color="#fff6ff"/><stop offset="1" stop-color="#b9a4ef"/></radialGradient></defs>
+  lune: `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><radialGradient id="lw"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#c9d6ff"/></radialGradient></defs>
     <circle cx="32" cy="32" r="32" fill="#2e2b5a"/>
-    <ellipse cx="20" cy="26" rx="13" ry="9" fill="url(#lw)" transform="rotate(-25 20 26)"/><ellipse cx="44" cy="26" rx="13" ry="9" fill="url(#lw)" transform="rotate(25 44 26)"/>
-    <ellipse cx="22" cy="40" rx="9" ry="7" fill="url(#lw)" opacity="0.85"/><ellipse cx="42" cy="40" rx="9" ry="7" fill="url(#lw)" opacity="0.85"/>
-    <rect x="30" y="20" width="4" height="26" rx="2" fill="#f4eeff"/><circle cx="21" cy="25" r="2.4" fill="#fff0c0"/><circle cx="43" cy="25" r="2.4" fill="#fff0c0"/></svg>`,
+    <path d="M30 36q-16 4-24 18q14-2 24-10z" fill="url(#lw)" opacity="0.9"/>
+    <path d="M28 30q-12-14-22-12q6 4 8 10q-6 0-8 4q10 4 22 2z" fill="url(#lw)"/>
+    <ellipse cx="36" cy="34" rx="12" ry="9" fill="#ffffff"/><circle cx="46" cy="26" r="8" fill="#ffffff"/>
+    <path d="M53 25l8 2-8 3z" fill="#f2c96a"/><circle cx="48" cy="24" r="1.8" fill="#2a2440"/>
+    <path d="M44 18l2-6 2 6z" fill="#f2c96a"/></svg>`,
 };
 
 // Show a few lines, one at a time. Resolves when closed.

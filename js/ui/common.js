@@ -12,10 +12,10 @@ let captionTimer;
 let stickyShowing = false;
 const tellQueue = [];
 
-function showCaption(text, sticky) {
+function showCaption(text, sticky, label) {
   const el = $('#caption');
   const more = tellQueue.length > 0;
-  el.innerHTML = `<span class="cap-text">${esc(text)}</span>${sticky ? `<button class="btn primary small cap-next">${more ? 'Next' : 'Got it'}</button>` : ''}`;
+  el.innerHTML = `<span class="cap-text">${esc(text)}</span>${sticky ? `<button class="btn primary small cap-next">${esc(label || (more ? 'Next' : 'Got it'))}</button>` : ''}`;
   el.classList.toggle('sticky', sticky);
   el.classList.add('show');
   stickyShowing = sticky;
@@ -28,20 +28,49 @@ function hideCaption() {
   clearTimeout(captionTimer);
 }
 
+let current = null;
+let tellsPaused = false;
 function nextTell() {
+  current?.done?.();
+  current = null;
   if (!tellQueue.length) return hideCaption();
-  showCaption(tellQueue.shift(), true);
+  current = tellQueue.shift();
+  showCaption(current.text, true, current.label);
 }
 
 export function say(text, ms) {
-  if (stickyShowing || tellQueue.length) return; // never talk over something you're still reading
+  if (stickyShowing || (tellQueue.length && !tellsPaused)) return; // never talk over something you're still reading
   showCaption(text, false);
   captionTimer = setTimeout(hideCaption, ms ?? Math.max(4200, 1800 + text.length * 70));
 }
 
 export function tell(text) {
-  tellQueue.push(text);
-  if (!stickyShowing) nextTell();
+  tellQueue.push({ text });
+  if (!stickyShowing && !tellsPaused) nextTell();
+}
+
+// Like tell(), but resolves when the reader taps the button, so whatever
+// happens next can wait for them.
+export function ask(text, label = 'Next') {
+  return new Promise((done) => {
+    tellQueue.push({ text, label, done });
+    if (!stickyShowing && !tellsPaused) nextTell();
+  });
+}
+
+// During a celebration clip, news steps aside (and comes back afterwards) so
+// the clip's own captions can be seen.
+export function pauseTells() {
+  tellsPaused = true;
+  if (stickyShowing && current) {
+    tellQueue.unshift(current);
+    current = null;
+    hideCaption();
+  }
+}
+export function resumeTells() {
+  tellsPaused = false;
+  if (!stickyShowing && tellQueue.length) nextTell();
 }
 
 document.addEventListener('click', (e) => {
@@ -52,8 +81,9 @@ document.addEventListener('click', (e) => {
 
 // A small "Quest Complete" banner shown over the celebration clip.
 let celebrateTimer;
-export function celebrate(title, line = '', ms = 4200) {
+export function celebrate(title, line = '', ms = 4200, eyebrow = 'Quest Complete') {
   const el = $('#celebrate');
+  $('.eyebrow', el).textContent = eyebrow;
   $('h3', el).textContent = title;
   $('.line', el).textContent = line;
   $('.line', el).hidden = !line;

@@ -844,6 +844,8 @@ export function buildHaven(world, { say }) {
     },
     pulse() { eggState.pulse = 1; eggState.wobble = 0.6; },
     wobble() { eggState.wobble = 1; },
+    setVisible(v) { egg.visible = v; },
+    isVisible: () => egg.visible,
     // A slow, warm glow that swells and fades over `dur` seconds.
     swell(dur = 3) { return world.tween(dur, (p) => { eggState.swell = Math.sin(Math.PI * p); }, (p) => p).then(() => { eggState.swell = 0; }); },
     // Builds up shaking and glow over `dur` seconds.
@@ -1121,8 +1123,14 @@ export function buildHaven(world, { say }) {
   const bflies = butterflyColors.map((c, i) => {
     const b = new THREE.Group();
     const wm = new THREE.MeshStandardMaterial({ color: c, side: THREE.DoubleSide, roughness: 0.6, emissive: c, emissiveIntensity: 0.15 });
-    const wg = new THREE.PlaneGeometry(0.26, 0.22);
-    wg.translate(0.13, 0, 0);
+    // a proper wing shape: a big upper lobe and a smaller lower one
+    const ws = new THREE.Shape();
+    ws.moveTo(0, 0);
+    ws.bezierCurveTo(0.04, 0.15, 0.22, 0.2, 0.25, 0.08);
+    ws.bezierCurveTo(0.27, 0.0, 0.18, -0.01, 0.13, -0.02);
+    ws.bezierCurveTo(0.2, -0.08, 0.12, -0.17, 0.05, -0.12);
+    ws.bezierCurveTo(0.02, -0.09, 0.0, -0.04, 0, 0);
+    const wg = new THREE.ShapeGeometry(ws, 8);
     wg.rotateX(-Math.PI / 2);
     const wings = [1, -1].map((sx) => {
       const w = new THREE.Mesh(wg, wm);

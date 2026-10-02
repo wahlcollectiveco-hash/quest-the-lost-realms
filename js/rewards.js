@@ -8,7 +8,7 @@ import { PALETTES, NAMES } from './data/creatures.js';
 // ---- The egg ----
 export const eggNeed = () => 10 + 4 * state.hatch.eggIndex;
 export const eggFraction = () => Math.min(1, state.hatch.warmth / eggNeed());
-export const eggReady = () => state.hatch.warmth >= eggNeed();
+export const eggReady = () => state.hatch.phase !== 'raising' && state.hatch.warmth >= eggNeed();
 
 export function eggPalette() {
   if (!state.hatch.palette) {
@@ -100,10 +100,12 @@ export function rewardQuest(q, { focusMinutes = 0 } = {}) {
   let gain = 1;
   if (q.type === 'focus') gain += Math.min(2, Math.floor((focusMinutes || 0) / 25));
   if (q.steps.length >= 3) gain += 1;
-  if (!wasReady) state.hatch.warmth = Math.min(eggNeed(), state.hatch.warmth + gain);
+  // While a hatchling is still settling in there's no egg to warm.
+  const hasEgg = state.hatch.phase !== 'raising';
+  if (hasEgg && !wasReady) state.hatch.warmth = Math.min(eggNeed(), state.hatch.warmth + gain);
   const item = rollDiscovery(focusMinutes);
   save();
-  return { gain, nowReady: !wasReady && eggReady(), item };
+  return { gain, warmed: hasEgg, nowReady: hasEgg && !wasReady && eggReady(), item };
 }
 
 export const isFound = (id) => !!state.found[id];

@@ -7,7 +7,7 @@ import { state, save } from './state.js';
 import { eggFraction, eggReady } from './rewards.js';
 import { litRunes, stoneState, STONES, valeUnlocked, markDoorOpened } from './realm.js';
 import { drawRune, VALE_CENTER } from './world/haven.js';
-import { createHistorian, createFox, createMoth } from './world/npcs.js';
+import { createHistorian, createFox, createLune } from './world/npcs.js';
 import { talk, letterbox } from './ui/dialogue.js';
 import { DRAGONS } from './data/dragons.js';
 import { HAZEL_BANTER, HAZEL_TRICK, QUILL_BANTER } from './data/moments.js';
@@ -24,7 +24,7 @@ export const MOMENTS = {
   },
   'mysterious-egg': {
     title: 'The Mysterious Egg',
-    when: () => eggFraction() >= 0.6 || state.creatures.length > 0,
+    when: () => state.hatch.phase !== 'raising' && (eggFraction() >= 0.6 || state.creatures.length > 0),
     announce: 'The symbols on the egg are glowing strangely. Take a closer look?',
   },
   'door-waking': {
@@ -173,7 +173,7 @@ export function createStory({ world, haven, vale, director, getCompanion, getWhe
   scene.add(quill.root);
   world.addUpdater(quill.update);
 
-  const lune = createMoth();
+  const lune = createLune();
   lune.setFade(0);
   scene.add(lune.root);
   world.addUpdater(lune.update);
@@ -487,7 +487,7 @@ export function createStory({ world, haven, vale, director, getCompanion, getWhe
     if (!S.announced.lune) {
       S.announced.lune = true;
       save();
-      announce('A small glowing moth has appeared somewhere nearby. See if you can spot it, then tap it!');
+      announce('A small glowing bird with long tail feathers has appeared somewhere nearby. See if you can spot her, then tap her!');
     }
   }
   function hideLune(flyAway = true) {

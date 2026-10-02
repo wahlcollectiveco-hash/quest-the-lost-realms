@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { state, save, todayISO } from './state.js';
 import { rankQuests } from './next.js';
 import { eggReady } from './rewards.js';
+import { wishText, eggInsight } from './wishes.js';
 import {
   SCENES, SHOWOFF, QUIPS, NUDGES, NUDGE_STEP, NO_QUESTS, GO_LINES, LATER_LINES, QUESTIONS, FAVORS, HINTS,
   FOCUS_LINES, BUSY_LINES,
@@ -129,6 +130,9 @@ export function createMoments({
     if (getWhere() !== 'haven') return null;
     if (eggReady()) return HINTS.eggReady;
     if (state.found['mossy-key'] && !state.chestOpened) return HINTS.chestKey;
+    // what they're wishing for, or how close the egg is (now and then)
+    if (wishText()) return wishText();
+    if (eggInsight() && Math.random() < 0.4) return eggInsight();
     return null;
   }
 
@@ -153,7 +157,7 @@ export function createMoments({
     const h = hint();
     if (h && Math.random() < 0.4) {
       d.react('hop');
-      think(h, { ms: 6000 });
+      think(h, { ms: 8000 });
       return;
     }
     // The first tap is always a scene, so there's something to see straight away.

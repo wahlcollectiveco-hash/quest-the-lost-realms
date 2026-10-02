@@ -7,6 +7,7 @@ import {
 } from '../state.js';
 import { rankQuests, reasonText, TIME_OPTIONS } from '../next.js';
 import { eggReady } from '../rewards.js';
+import { wishCard } from '../wishes.js';
 import { $, $$, esc, openModal, fmtDate, say } from './common.js';
 
 const PRI = { high: 0, normal: 1, low: 2 };
@@ -79,6 +80,11 @@ export function initQuestUI({ onComplete, onStartFocus, onEnergy, onGo, onHatch 
     let html = '';
     if (eggReady()) {
       html += `<button class="hatch-ready" data-tool="hatch">${SPARK}<span>Your egg is ready to hatch!</span></button>`;
+    }
+    // What's coming next: your dragon's wish, or how close the egg is.
+    const wish = wishCard();
+    if (wish) {
+      html += `<div class="wish-card"><p class="eyebrow">${esc(wish.eyebrow)}</p><p class="wish-text">${esc(wish.text)}</p>${wish.progress ? `<p class="wish-progress">${esc(wish.progress)}</p>` : ''}</div>`;
     }
     if (openCount) {
       html += `<button class="choose-next" data-tool="next">${SPARK}<span>Choose My Next Quest</span></button>`;
