@@ -1,5 +1,5 @@
 // Each starter dragon's signature move.
-//   Ember  — rears back and breathes a little plume of fire
+//   Ash  — rears back and breathes a little plume of fire
 //   Pebble — makes wildflowers pop up in a ring around it
 //   Moon   — floats up on a swirl of starlight
 // Hatchlings and others just do a happy hop.

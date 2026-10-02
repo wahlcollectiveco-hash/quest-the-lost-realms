@@ -23,7 +23,7 @@ To preview one dragon activity during a Focus Quest, add it to the address, e.g.
 
 - `js/main.js` — app flow (Welcome → Choose dragon → Dragon Haven)
 - `js/state.js` — Quest + dragon data, saved to localStorage
-- `js/data/dragons.js` — Pebble, Ember, Moon: colors, personality lines
+- `js/data/dragons.js` — Pebble, Ash, Moon: colors, personality lines
 - `js/world/scene.js` — renderer, camera, tap handling
 - `js/world/haven.js` — the island, cottage, Ancient Door, egg nest, water, life
 - `js/world/dragon.js` — placeholder dragons (swap for real 3D models later)

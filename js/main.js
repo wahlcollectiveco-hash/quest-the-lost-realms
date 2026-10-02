@@ -37,7 +37,7 @@ const haven = buildHaven(world, { say });
 const vale = buildVale(world);
 const abilities = createAbilities(world);
 // Each dragon leaves a little trail where they walk and rest: Pebble flowers,
-// Ember flames, Moon clouds and sparkles. (Meadows stay calmer for Pebble.)
+// Ash flames, Moon clouds and sparkles. (Meadows stay calmer for Pebble.)
 const trail = createFlowerTrail(world, {
   getDragon: () => {
     const screen = document.body.dataset.screen;

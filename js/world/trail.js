@@ -1,6 +1,6 @@
 // Each starter dragon leaves something of themselves where they walk and rest.
 //   Pebble — flowers sprout in her footsteps and bloom in a ring where she sits
-//   Ember  — little flames and glowing embers flicker in his footprints
+//   Ash  — little flames and glowing embers flicker in his footprints
 //   Moon   — soft cloud puffs and twinkling sparkles drift where she's been
 // Everything fades after a while, so the world never fills up.
 import * as THREE from 'three';
@@ -10,7 +10,7 @@ const TAU = Math.PI * 2;
 const POOL = 56;
 const rnd = (a, b) => a + Math.random() * (b - a);
 
-// A four-point sparkle, for Moon's stars and Ember's sparks.
+// A four-point sparkle, for Moon's stars and Ash's sparks.
 function sparkleTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
