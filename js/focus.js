@@ -7,7 +7,8 @@ import {
 import { DRAGONS } from './data/dragons.js';
 import { ACTIVITY_LINES, chooseActivity } from './world/activities.js';
 import { $, esc, say } from './ui/common.js';
-import { sfx } from './audio.js';
+import { audio, sfx } from './audio.js';
+import { settings } from './ui/settings.js';
 
 const RING = 2 * Math.PI * 54;
 const ROTATE_MS = 8 * 60000; // switch activities during long sessions
@@ -38,6 +39,27 @@ export function createFocus({ world, director, getCompanion, setScreen, onDone }
     leave: $('#focus-leave'),
   };
   el.bar.style.strokeDasharray = RING;
+
+  // Sound on/off, right on the timer (handy when you'd rather play your own music).
+  const soundBtn = $('#focus-sound');
+  function renderSound() {
+    const s = settings();
+    const on = !s.focusQuiet && (s.sfx || s.ambient);
+    soundBtn.setAttribute('aria-pressed', String(on));
+    soundBtn.querySelector('span').textContent = on ? 'Sound on' : 'Sound off';
+    audio.mute(!on && document.body.dataset.screen === 'focus');
+  }
+  soundBtn.addEventListener('click', () => {
+    const s = settings();
+    const on = !s.focusQuiet && (s.sfx || s.ambient);
+    const next = { ...s, focusQuiet: on };
+    // Turning sound on when it's all switched off in Settings turns it back on there too.
+    if (!on && !s.sfx && !s.ambient) { next.sfx = true; next.ambient = true; audio.set({ sfx: true, ambient: true }); }
+    state.settings = next;
+    save();
+    renderSound();
+    if (!on) sfx.tap();
+  });
 
   let activityStartedAt = 0; // focus-elapsed ms when the current activity began
   let awayPaused = false;
@@ -189,6 +211,7 @@ export function createFocus({ world, director, getCompanion, setScreen, onDone }
     renderStatic();
     renderControls();
     renderTime();
+    renderSound();
     director.focusPoint.position.copy(companion.root.position);
     world.follow(director.focusPoint);
     const p = director.focusPoint.position;
@@ -207,6 +230,7 @@ export function createFocus({ world, director, getCompanion, setScreen, onDone }
     const spent = Math.min(focusElapsed(f), f.durationMs);
     const q = endFocus({ complete });
     world.follow(null);
+    audio.mute(false);
     director.goHome(getCompanion());
     onDone({ quest: q, complete, minutes: minutes(spent) });
   }

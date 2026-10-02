@@ -9,6 +9,8 @@ import { litRunes, stoneState, STONES, valeUnlocked, markDoorOpened } from './re
 import { drawRune, VALE_CENTER } from './world/haven.js';
 import { createHistorian, createFox, createMoth } from './world/npcs.js';
 import { talk, letterbox } from './ui/dialogue.js';
+import { DRAGONS } from './data/dragons.js';
+import { HAZEL_BANTER, HAZEL_TRICK, QUILL_BANTER } from './data/moments.js';
 
 const V = THREE.Vector3;
 const MAPS = ['map-1', 'map-2', 'map-3', 'map-4'];
@@ -98,7 +100,7 @@ function glowSprite(color = 'rgba(255,230,160,1)') {
   return new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
 }
 
-export function createStory({ world, haven, vale, director, getCompanion, getWhere, say, tell, whenCalm, sparkle, onBegin, onEnd }) {
+export function createStory({ world, haven, vale, director, getCompanion, getWhere, say, tell, whenCalm, bubbles, overHead, sparkle, onBegin, onEnd }) {
   const { scene } = world;
   const S = state.story;
   const comp = () => getCompanion();
@@ -337,8 +339,14 @@ export function createStory({ world, haven, vale, director, getCompanion, getWhe
     return l.lines;
   }
 
+  // What Hazel does when tapped: the first time she introduces herself;
+  // after that it's a useful hint, or a little scene with your dragon.
   function hazelLines() {
     if (!S.met.hazel) { S.met.hazel = true; save(); return HAZEL_INTRO; }
+    const hint = hazelHint();
+    return hint && Math.random() < 0.6 ? [hint] : null;
+  }
+  function hazelHint() {
     const hints = [
       [pending('strange-flower'), 'The little white flower on the path to the Door has started glowing. Tap the flower to take a closer look!'],
       [pending('mysterious-egg'), 'The symbols on your egg are glowing. Tap the egg to see what’s happening.'],
@@ -354,13 +362,12 @@ export function createStory({ world, haven, vale, director, getCompanion, getWhe
       [!state.realm.hidden.glade, 'A thick wall of bushes on the left side of Verdant Vale is hiding something. Tap the bushes.'],
       [!state.found['story-mural'], 'The carvings in the Vale ruins tell an old story. Tap them to read it.'],
     ];
-    const hint = hints.find(([ok]) => ok);
-    return [hint && Math.random() < 0.8 ? hint[1] : pickOne(HAZEL_AMBIENT)];
+    return hints.find(([ok]) => ok)?.[1] || null;
   }
 
   function quillLines() {
     if (!S.met.quill) { S.met.quill = true; save(); return QUILL_INTRO; }
-    return nextLore('quill', QUILL_LORE) || [pickOne(QUILL_AMBIENT)];
+    return nextLore('quill', QUILL_LORE);
   }
 
   function luneLines() {
@@ -376,19 +383,88 @@ export function createStory({ world, haven, vale, director, getCompanion, getWhe
     talking = false;
   }
 
+  // ---- Little scenes: bubbles over the characters' heads ----
+  const dragonId = () => DRAGONS[state.dragon]?.id || 'pebble';
+  const dragonName = () => DRAGONS[state.dragon]?.name || 'Your dragon';
+  const hazelHead = () => hazel.root.position.clone().add(new V(0, 1.75, 0));
+  const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+  // Give the dragon a moment to walk over, but never wait long.
+  const arrive = (walk) => Promise.race([walk, pause(5000)]);
+
+  // A short back-and-forth between a character and your dragon.
+  // Returns false if it was cut short (something else took the bubble).
+  async function banter(name, anchor, react, lines) {
+    for (const [who, text] of lines) {
+      const d = comp();
+      if (!d) return false;
+      let r;
+      if (who === 'you') {
+        d.react(Math.random() < 0.5 ? 'hop' : 'tilt');
+        r = await bubbles.show(overHead(d), { name: dragonName(), text });
+      } else {
+        react();
+        r = await bubbles.show(anchor, { name, text });
+      }
+      if (r === 'replaced') return false;
+      await pause(250);
+    }
+    return true;
+  }
+
+  async function act(fn) {
+    if (talking || playing) return;
+    talking = true;
+    try { await fn(); } catch (e) { console.error(e); }
+    talking = false;
+  }
+
   world.onTap(hazel.root, () => {
-    if (getWhere() !== 'haven' || !hazel.root.visible) return;
+    if (getWhere() !== 'haven' || !hazel.root.visible || talking || playing) return;
     hazel.react();
     const p = hazel.root.position;
-    director.visit(comp(), new V(p.x - 1.3, 0, p.z + 1.2), p);
-    converse('hazel', 'Hazel', hazelLines());
+    const walk = director.visit(comp(), new V(p.x - 1.3, 0, p.z + 1.2), p);
+    const lines = hazelLines();
+    if (lines) return converse('hazel', 'Hazel', lines);
+    const id = dragonId();
+    const kind = pickOne(['banter', 'banter', 'trick', 'toYou']);
+    act(async () => {
+      if (kind === 'toYou') {
+        await bubbles.show(hazelHead, { name: 'Hazel', text: pickOne(HAZEL_AMBIENT) });
+        return;
+      }
+      await arrive(walk);
+      if (kind === 'banter') {
+        await banter('Hazel', hazelHead, () => hazel.react(), pickOne(HAZEL_BANTER[id]));
+        return;
+      }
+      // Hazel shows off: a quick spin chasing her own tail.
+      const r = await bubbles.show(hazelHead, { name: 'Hazel', text: 'Watch this!', ms: 1600 });
+      if (r === 'replaced') return;
+      hazel.react('spin');
+      await pause(1700);
+      sparkle(p, 14);
+      const d = comp();
+      if (!d) return;
+      d.react('celebrate');
+      await bubbles.show(overHead(d), { name: dragonName(), text: HAZEL_TRICK[id] });
+    });
   });
   world.onTap(quill.root, () => {
-    if (getWhere() !== 'vale') return;
+    if (getWhere() !== 'vale' || talking || playing) return;
     quill.react('tilt');
     const p = quill.root.position;
-    director.visit(comp(), new V(p.x + 1.4, p.y - 0.14, p.z + 1.6), p);
-    converse('quill', 'Quill, the Dragon Historian', quillLines());
+    const walk = director.visit(comp(), new V(p.x + 1.4, p.y - 0.14, p.z + 1.6), p);
+    const lines = quillLines();
+    if (lines) return converse('quill', 'Quill, the Dragon Historian', lines);
+    // Nothing new to tell: a quiet word for you, or a chat with your dragon.
+    act(async () => {
+      if (Math.random() < 0.5) {
+        await bubbles.show(overHead(quill), { name: 'Quill', text: pickOne(QUILL_AMBIENT) });
+        return;
+      }
+      await arrive(walk);
+      await banter('Quill', overHead(quill), () => quill.react('tilt'), pickOne(QUILL_BANTER[dragonId()]));
+    });
   });
   world.onTap(flower, () => {
     if (getWhere() !== 'haven') return;

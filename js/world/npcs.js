@@ -95,6 +95,7 @@ export function createFox() {
   add(tail, new THREE.SphereGeometry(0.1, 12, 10), cream, [0, 0.24, -0.55], [0, 0, 0], [1, 1, 1.3]);
 
   let hop = -1;
+  let spin = -1;
   const ph = Math.random() * 10;
   function update(t, dt) {
     const k = t + ph;
@@ -109,9 +110,18 @@ export function createFox() {
       rig.position.y = Math.sin(Math.PI * p) * 0.3;
       if (p >= 1) hop = -1;
     }
+    if (spin >= 0) {
+      // chasing her own tail: two quick turns with a little bounce
+      spin += dt;
+      const p = Math.min(1, spin / 1.5);
+      const e = p * p * (3 - 2 * p);
+      rig.rotation.y = e * TAU * 2;
+      rig.position.y = Math.abs(Math.sin(p * Math.PI * 4)) * 0.12;
+      if (p >= 1) { spin = -1; rig.rotation.y = 0; rig.position.y = 0; }
+    }
   }
   root.scale.setScalar(1.35);
-  return { root, update, react() { hop = 0; } };
+  return { root, update, react(kind) { if (kind === 'spin') spin = 0; else hop = 0; } };
 }
 
 // ---- Lune, the moth-like wanderer ----

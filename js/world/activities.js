@@ -146,6 +146,120 @@ function makeZzz() {
   return group;
 }
 
+// ---- Props for the little scenes dragons act out when tapped ----
+function makeButterfly() {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const wingMat = std('#f6a9cc', { side: THREE.DoubleSide });
+  const wings = [-1, 1].map((sx) => {
+    const geo = new THREE.CircleGeometry(0.09, 12);
+    geo.scale(1, 1.25, 1);
+    geo.rotateX(-Math.PI / 2);
+    geo.translate(0.085, 0, 0);
+    const w = new THREE.Mesh(geo, wingMat);
+    w.scale.x = sx;
+    body.add(w);
+    return w;
+  });
+  body.add(new THREE.Mesh(new THREE.CapsuleGeometry(0.012, 0.09, 3, 6), std('#4a3528')).rotateX(Math.PI / 2));
+  g.userData = { body, wings };
+  g.scale.setScalar(1.5);
+  return g;
+}
+
+function makeBloom(color, r = 0.05) {
+  const g = new THREE.Group();
+  const petal = std(color);
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * TAU;
+    const p = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), petal);
+    p.scale.set(1, 0.45, 1);
+    p.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+    g.add(p);
+  }
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(r * 0.6, 8, 6), std('#f2c64e')).translateY(r * 0.3));
+  return g;
+}
+
+// A ring of little flowers that sits on a dragon's head.
+function makeCrown() {
+  const g = new THREE.Group();
+  const colors = ['#f6c7d6', '#f3d46c', '#cdb6ec', '#ffffff', '#f19a78', '#a9d6f7'];
+  const n = 10;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * TAU;
+    const b = makeBloom(colors[i % colors.length], 0.045);
+    b.position.set(Math.cos(a) * 0.32, 0, Math.sin(a) * 0.32);
+    b.rotation.set(Math.sin(a) * 0.9, 0, -Math.cos(a) * 0.9);
+    g.add(b);
+  }
+  g.add(new THREE.Mesh(new THREE.TorusGeometry(0.31, 0.016, 5, 28), std('#5e8c3c')).rotateX(Math.PI / 2));
+  g.position.set(0, 0.36, 0);
+  g.rotation.x = -0.12;
+  return shadowed(g);
+}
+
+function makeBeetle() {
+  const g = new THREE.Group();
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 10), std('#2f9e8f', { emissive: '#1f7f72', emissiveIntensity: 0.5, roughness: 0.2 }));
+  shell.scale.set(1, 0.65, 1.3);
+  g.add(shell);
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), std('#2b2320')).translateZ(0.07));
+  return g;
+}
+
+function makeCampfire() {
+  const g = new THREE.Group();
+  const log = std('#7a4a2c');
+  for (let i = 0; i < 4; i++) {
+    const l = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.5, 6), log);
+    l.rotation.set(Math.PI / 2 - 0.5, (i / 4) * TAU, 0, 'YXZ');
+    l.position.set(Math.sin((i / 4) * TAU) * 0.1, 0.12, Math.cos((i / 4) * TAU) * 0.1);
+    g.add(l);
+  }
+  const stone = std('#9a968c');
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * TAU;
+    const st = new THREE.Mesh(new THREE.SphereGeometry(0.075, 7, 5), stone);
+    st.scale.y = 0.6;
+    st.position.set(Math.cos(a) * 0.36, 0.03, Math.sin(a) * 0.36);
+    g.add(st);
+  }
+  shadowed(g);
+  const flames = new THREE.Group();
+  flames.position.y = 0.14;
+  const outer = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.5, 9), new THREE.MeshBasicMaterial({ color: '#ff7a1a' }));
+  outer.position.y = 0.25;
+  const inner = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.34, 9), new THREE.MeshBasicMaterial({ color: '#ffd45a' }));
+  inner.position.y = 0.18;
+  flames.add(outer, inner);
+  g.add(flames);
+  const light = new THREE.PointLight('#ff9a3c', 0, 7, 2);
+  light.position.y = 0.6;
+  g.add(light);
+  g.userData = { flames, outer, inner, light, level: 0, target: 0, until: 0 };
+  return g;
+}
+
+// Pillows that pile up into a nest around a sleepy dragon.
+function makeBed() {
+  const g = new THREE.Group();
+  const colors = ['#b7a6e8', '#f3e6c8', '#9fb9ec', '#e7b9d6', '#f3e6c8', '#b7a6e8'];
+  const cushions = colors.map((c, i) => {
+    const a = (i / colors.length) * TAU + 0.4;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.34, 14, 10), std(c, { roughness: 0.95 }));
+    m.position.set(Math.cos(a) * 0.82, 0.1, Math.sin(a) * 0.82);
+    m.rotation.y = -a;
+    m.userData.size = [1.15, 0.42, 0.8];
+    m.scale.setScalar(0.001);
+    g.add(m);
+    return m;
+  });
+  g.userData.cushions = cushions;
+  return shadowed(g);
+}
+
 export function createActivityDirector(world, haven) {
   const { scene } = world;
   const A = haven.anchors;
@@ -165,8 +279,19 @@ export function createActivityDirector(world, haven) {
   const zzz = makeZzz();
   const bouquet = new THREE.Group();
   bouquet.position.set(home.x + 1.0, 0.12, home.z + 0.4);
-  props.add(book, basket, box, zzz, bouquet);
-  const hideProps = () => { book.visible = basket.visible = box.visible = zzz.visible = false; };
+  const butterfly = makeButterfly();
+  const sniff = makeFlower('#f3d46c');
+  sniff.scale.setScalar(1.7);
+  const beetle = makeBeetle();
+  const camp = makeCampfire();
+  camp.visible = false;
+  const bed = makeBed();
+  props.add(book, basket, box, zzz, bouquet, butterfly, sniff, camp, bed);
+  const hideProps = () => { book.visible = basket.visible = box.visible = zzz.visible = butterfly.visible = sniff.visible = bed.visible = false; };
+  // The butterfly drifts toward wherever it's headed (or rides on a nose).
+  const fly = { target: new V(), onNose: false };
+  let crown = null; // { obj, until }
+  let now = 0;
   hideProps();
   let carried = null;
 
@@ -191,6 +316,33 @@ export function createActivityDirector(world, haven) {
     for (const d of drivers) {
       if (d.tk.cancelled) { drivers.delete(d); d.rej(CANCEL); continue; }
       if (d.fn(dt)) { drivers.delete(d); d.res(); }
+    }
+    now = t;
+    if (butterfly.visible) {
+      if (fly.onNose && dragon) dragon.mouth.getWorldPosition(fly.target).add(tmp.set(0, 0.2 * dragon.root.scale.x, 0));
+      butterfly.position.lerp(fly.target, 1 - Math.exp(-dt * (fly.onNose ? 5 : 1.9)));
+      const u = butterfly.userData;
+      u.body.position.y = fly.onNose ? 0 : Math.sin(t * 6) * 0.07;
+      const flap = fly.onNose ? 0.35 + 0.3 * Math.sin(t * 3) : 0.15 + 0.95 * Math.abs(Math.sin(t * 13));
+      u.wings[0].rotation.z = -flap;
+      u.wings[1].rotation.z = flap;
+      u.body.rotation.y = t * 0.6;
+    }
+    if (camp.visible) {
+      const u = camp.userData;
+      if (t > u.until) u.target = 0;
+      u.level += (u.target - u.level) * (1 - Math.exp(-dt * 2.2));
+      const f = 0.85 + 0.15 * Math.sin(t * 17) + 0.08 * Math.sin(t * 29);
+      u.flames.visible = u.level > 0.02;
+      u.outer.scale.set(u.level * (1.05 - 0.1 * f), u.level * f, u.level * (1.05 - 0.1 * f));
+      u.inner.scale.set(u.level, u.level * (0.8 + 0.3 * Math.sin(t * 23)), u.level);
+      u.light.intensity = u.level * 5 * f;
+      if (u.target === 0 && u.level < 0.02 && t > u.until + 6) camp.visible = false;
+    }
+    if (crown && t > crown.until) {
+      const c = crown;
+      crown = null;
+      world.tween(0.8, (p) => c.obj.scale.setScalar(Math.max(0.001, 1 - p))).then(() => c.obj.parent?.remove(c.obj));
     }
     // Prop animation
     boxOpen += (boxTarget - boxOpen) * (1 - Math.exp(-dt * 3));
@@ -248,6 +400,22 @@ export function createActivityDirector(world, haven) {
   const faceCamera = (tk) => turnTo(tk, world.camera.position.x, world.camera.position.z);
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
   const between = (a, b) => a + Math.random() * (b - a);
+  // A spot a little way in front of the dragon.
+  const front = (d) => {
+    const ry = dragon.root.rotation.y;
+    const s = dragon.root.scale.x;
+    return new V(dragon.root.position.x + Math.sin(ry) * d * s, groundY, dragon.root.position.z + Math.cos(ry) * d * s);
+  };
+  // Somewhere nearby that a dragon can stand.
+  function near(ctx, c, rMin, rMax) {
+    for (let i = 0; i < 16; i++) {
+      const a = Math.random() * TAU;
+      const r = between(rMin, rMax);
+      const x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r;
+      if (!ctx.walkable || ctx.walkable(x, z)) return new V(x, groundY, z);
+    }
+    return c.clone();
+  }
 
   // Put the dragon back on the ground wherever it is.
   async function settle(tk) {
@@ -431,8 +599,319 @@ export function createActivityDirector(world, haven) {
       }
     },
 
+    // ---- Little scenes, acted out when you tap your dragon ----
+    // ctx: { think(text, ms), sparkle(pos, n), ability(), walkable(x, z), chest, chestOpen, door }
+
+    // Pebble chases a butterfly, which ends up landing on her nose.
+    async butterfly(tk, ctx) {
+      await settle(tk);
+      const p = dragon.root.position;
+      const p0 = p.clone();
+      const first = near(ctx, p0, 1.3, 2.0);
+      fly.onNose = false;
+      butterfly.position.set(first.x + 1.5, groundY + 3.2, first.z - 1);
+      fly.target.set(first.x, groundY + 1.2, first.z);
+      butterfly.visible = true;
+      await turnTo(tk, first.x, first.z);
+      dragon.react('tilt');
+      ctx.think('Ooh. A butterfly!', 2400);
+      await sleep(tk, 2.0);
+      for (let i = 0; i < 3; i++) {
+        const pt = near(ctx, p0, 1.8, 3.4);
+        fly.target.set(pt.x, groundY + 1.0 + Math.random() * 0.5, pt.z);
+        await sleep(tk, 0.6);
+        const d = Math.hypot(pt.x - p.x, pt.z - p.z) || 1;
+        const k = Math.max(0, (d - 0.9) / d); // stop just short of it
+        dragon.setPose({ walk: 1 });
+        await moveTo(tk, p.x + (pt.x - p.x) * k, p.z + (pt.z - p.z) * k, { speed: 2.2 });
+        dragon.setPose({});
+        dragon.react('hop');
+        if (i === 1) ctx.think('Wait for me!', 2000);
+        await sleep(tk, 1.0);
+      }
+      await faceCamera(tk);
+      fly.onNose = true;
+      await sleep(tk, 1.8);
+      ctx.think('…it landed on my nose. Nobody move.', 3800);
+      await sleep(tk, 4.0);
+      fly.onNose = false;
+      fly.target.set(p.x + 2.5, groundY + 5, p.z - 2);
+      dragon.react('tilt');
+      ctx.think('Bye, butterfly!', 2200);
+      await sleep(tk, 2.4);
+      butterfly.visible = false;
+    },
+
+    // Pebble picks flowers and weaves them into a crown.
+    async crown(tk, ctx) {
+      await settle(tk);
+      const p0 = dragon.root.position.clone();
+      ctx.think('I’m making a flower crown. Hold on.', 3000);
+      await sleep(tk, 1.2);
+      for (let i = 0; i < 2; i++) {
+        await walk(tk, near(ctx, p0, 1.3, 2.6));
+        dragon.setPose({ headDown: 1, nibble: 1 });
+        await sleep(tk, 1.7);
+        if (carried) dragon.mouth.remove(carried);
+        carried = makeFlower(pick(FLOWER_COLORS));
+        carried.rotation.x = Math.PI / 2;
+        dragon.mouth.add(carried);
+        dragon.setPose({});
+        await sleep(tk, 0.5);
+      }
+      await walk(tk, p0);
+      await faceCamera(tk);
+      dragon.setPose({ headDown: 0.7, sweep: 1 });
+      ctx.think('Over, under, over, under…', 2800);
+      await sleep(tk, 3.0);
+      dragon.mouth.remove(carried);
+      carried = null;
+      if (crown) crown.obj.parent?.remove(crown.obj);
+      const obj = makeCrown();
+      dragon.head.add(obj);
+      crown = { obj, until: now + 150 };
+      world.tween(0.6, (q) => obj.scale.setScalar(Math.max(0.001, q * (1 + 0.3 * Math.sin(q * Math.PI)))));
+      dragon.setPose({});
+      dragon.react('celebrate');
+      ctx.sparkle(dragon.head.getWorldPosition(new V()), 18);
+      ctx.think('Ta-da! How do I look?', 4200);
+      await sleep(tk, 3.0);
+    },
+
+    // Pebble sniffs a flower a little too hard.
+    async sneeze(tk, ctx) {
+      await settle(tk);
+      await faceCamera(tk);
+      const f = front(0.95);
+      sniff.position.set(f.x, groundY + 0.5, f.z);
+      sniff.visible = true;
+      dragon.setPose({ headDown: 0.75 });
+      ctx.think('Mmm. This one smells like…', 2600);
+      await sleep(tk, 2.6);
+      dragon.setPose({});
+      dragon.react('sneeze');
+      await sleep(tk, 0.8);
+      sniff.visible = false;
+      ctx.sparkle(new V(f.x, groundY + 0.6, f.z), 28);
+      ctx.think('ACHOO!', 1800);
+      await sleep(tk, 1.9);
+      dragon.react('tilt');
+      ctx.think('…pollen. Worth it.', 3000);
+      await sleep(tk, 2.2);
+    },
+
+    // Pebble finds a beetle and shows it to you.
+    async beetle(tk, ctx) {
+      await settle(tk);
+      dragon.setPose({ headDown: 1, nibble: 1 });
+      ctx.think('Ooh, what’s under here…', 2600);
+      await sleep(tk, 2.6);
+      carried = beetle;
+      beetle.position.set(0, 0.2, -0.08);
+      dragon.mouth.add(beetle);
+      dragon.setPose({});
+      await faceCamera(tk);
+      dragon.react('tilt');
+      ctx.think('Look! A beetle. I’m naming him Gerald.', 4400);
+      await sleep(tk, 4.4);
+      ctx.sparkle(beetle.getWorldPosition(new V()), 8);
+      dragon.mouth.remove(beetle);
+      carried = null;
+      ctx.think('Bye, Gerald.', 2200);
+      await sleep(tk, 1.6);
+    },
+
+    // Ash lights a campfire. Second try.
+    async campfire(tk, ctx) {
+      await settle(tk);
+      await faceCamera(tk);
+      const f = front(1.5);
+      const u = camp.userData;
+      camp.position.set(f.x, groundY, f.z);
+      u.level = 0;
+      u.target = 0;
+      u.until = Infinity;
+      camp.visible = true;
+      camp.scale.setScalar(0.001);
+      world.tween(0.5, (q) => camp.scale.setScalar(Math.max(0.001, q * 1.6)));
+      ctx.think('Watch this. One campfire, coming up.', 3000);
+      await sleep(tk, 2.4);
+      dragon.react('breathe');
+      await sleep(tk, 1.0);
+      ctx.sparkle(new V(f.x, groundY + 0.3, f.z), 6);
+      await sleep(tk, 1.2);
+      dragon.react('tilt');
+      ctx.think('…that was a warm-up.', 2400);
+      await sleep(tk, 2.4);
+      ctx.ability();
+      await sleep(tk, 1.1);
+      u.target = 1;
+      await sleep(tk, 1.6);
+      dragon.react('celebrate');
+      ctx.think('Ha! Nailed it.', 3600);
+      u.until = now + 45; // burns for a while, then dies down
+      await sleep(tk, 2.6);
+    },
+
+    // Ash checks on the old chest.
+    async chest(tk, ctx) {
+      await settle(tk);
+      const c = ctx.chest;
+      ctx.think(ctx.chestOpen ? 'Let’s go admire our treasure.' : 'I just want to check on that chest.', 3000);
+      await sleep(tk, 0.8);
+      await walk(tk, new V(c.x + 0.75, 0, c.z + 1.35));
+      await turnTo(tk, c.x, c.z);
+      dragon.setPose({ headDown: 0.8, nibble: 0.5 });
+      await sleep(tk, 2.4);
+      dragon.setPose({});
+      dragon.react('tilt');
+      ctx.think(ctx.chestOpen ? 'Still the best treasure ever.' : 'Still locked. One day, chest. One day.', 3800);
+      await sleep(tk, 3.0);
+      await faceCamera(tk);
+    },
+
+    // Ash marches a quick loop to make sure all is well.
+    async patrol(tk, ctx) {
+      await settle(tk);
+      const p0 = dragon.root.position.clone();
+      ctx.think('Perimeter check!', 2400);
+      for (let i = 0; i < 3; i++) {
+        const pt = near(ctx, p0, 1.8, 3.2);
+        dragon.setPose({ walk: 1 });
+        await moveTo(tk, pt.x, pt.z, { speed: 2.0 });
+        dragon.setPose({});
+        dragon.react('tilt');
+        await sleep(tk, 0.9);
+      }
+      await walk(tk, p0);
+      await faceCamera(tk);
+      dragon.react('hop');
+      ctx.think('All clear. You’re safe.', 3400);
+      await sleep(tk, 2.4);
+    },
+
+    async stretch(tk, ctx) {
+      await settle(tk);
+      await faceCamera(tk);
+      dragon.react('stretch');
+      ctx.think('Check out this wingspan.', 3200);
+      await sleep(tk, 2.8);
+      dragon.react('hop');
+      await sleep(tk, 0.9);
+    },
+
+    // Moon builds the perfect cozy bed, pillow by pillow, then tries it out.
+    async bed(tk, ctx) {
+      await settle(tk);
+      await faceCamera(tk);
+      const p = dragon.root.position;
+      const s = dragon.root.scale.x;
+      bed.position.set(p.x, groundY, p.z);
+      bed.rotation.y = dragon.root.rotation.y;
+      bed.scale.setScalar(s / 0.84);
+      const cushions = bed.userData.cushions;
+      cushions.forEach((c) => c.scale.setScalar(0.001));
+      bed.visible = true;
+      const pop = (c) => world.tween(0.5, (q) => {
+        const k = Math.max(0.001, q * (1 + 0.25 * Math.sin(q * Math.PI)));
+        c.scale.set(c.userData.size[0] * k, c.userData.size[1] * k, c.userData.size[2] * k);
+      });
+      ctx.think('I’m building the perfect cozy bed.', 3200);
+      for (let i = 0; i < 5; i++) {
+        dragon.setPose({ headDown: 0.7, sweep: 1 });
+        await sleep(tk, 1.0);
+        pop(cushions[i]);
+        await sleep(tk, 0.5);
+      }
+      dragon.setPose({ headDown: 1 });
+      await sleep(tk, 1.3);
+      dragon.setPose({});
+      dragon.react('tilt');
+      ctx.think('Hmm. One more pillow.', 2400);
+      await sleep(tk, 2.0);
+      pop(cushions[5]);
+      await sleep(tk, 0.9);
+      dragon.setPose({ lie: 1 });
+      await sleep(tk, 1.5);
+      ctx.think('…perfect.', 2800);
+      await sleep(tk, 1.4);
+      dragon.setPose({ lie: 1, sleep: 1 });
+      zzz.visible = true;
+      await sleep(tk, 7);
+      zzz.visible = false;
+      dragon.setPose({ lie: 0.6 });
+      await sleep(tk, 1.6);
+      dragon.setPose({});
+    },
+
+    async clouds(tk, ctx) {
+      await settle(tk);
+      await faceCamera(tk);
+      dragon.setPose({ lookUp: 1 });
+      ctx.think('One cloud… two clouds… three…', 3400);
+      await sleep(tk, 3.6);
+      dragon.react('tilt');
+      ctx.think('That one looks like a teapot.', 3400);
+      await sleep(tk, 3.2);
+      dragon.setPose({});
+    },
+
+    // Moon reads something interesting in her star book.
+    async starbook(tk, ctx) {
+      await settle(tk);
+      await faceCamera(tk);
+      const f = front(0.86);
+      book.position.set(f.x, groundY + 0.04, f.z);
+      book.scale.setScalar(1.5 * dragon.root.scale.x);
+      book.rotation.y = dragon.root.rotation.y + Math.PI / 2;
+      book.visible = true;
+      dragon.setPose({ headDown: 0.6 });
+      await sleep(tk, 2.0);
+      flipT = 0;
+      ctx.think('This book says stars are just very far-away lanterns.', 4200);
+      await sleep(tk, 4.0);
+      flipT = 0;
+      dragon.setPose({});
+      dragon.react('tilt');
+      ctx.think('I believe it.', 2600);
+      await sleep(tk, 2.4);
+    },
+
+    async hum(tk, ctx) {
+      await settle(tk);
+      await faceCamera(tk);
+      dragon.setPose({ sweep: 0.6 });
+      ctx.think('♪ hmm, hmm-hmm, hmm ♪', 4000);
+      for (let i = 0; i < 4; i++) {
+        ctx.sparkle(dragon.head.getWorldPosition(new V()).add(new V(between(-0.5, 0.5), 0.4, 0)), 5);
+        await sleep(tk, 1.0);
+      }
+      dragon.setPose({});
+    },
+
+    // Moon listens to the Ancient Door.
+    async door(tk, ctx) {
+      await settle(tk);
+      await turnTo(tk, ctx.door.x, ctx.door.z);
+      dragon.setPose({ lookUp: 0.5 });
+      ctx.think('The Door is humming again. Can you hear it?', 4200);
+      await sleep(tk, 4.0);
+      dragon.setPose({});
+      await faceCamera(tk);
+    },
+
+    // Just the special move, with a line.
+    async showoff(tk, ctx) {
+      await settle(tk);
+      await faceCamera(tk);
+      ctx.think(ctx.showoffLine, 3200);
+      await sleep(tk, 0.6);
+      await sleep(tk, ctx.ability() / 1000);
+    },
+
     // Fly to another island and land there.
     async travel(tk, target) {
+      camp.visible = false;
       dragon.setPose({ fly: 1 });
       const p = dragon.root.position;
       await moveTo(tk, p.x, p.z, { y: p.y + 2.5, speed: 2.2 });
@@ -480,8 +959,10 @@ export function createActivityDirector(world, haven) {
     token = tk;
     try {
       await ACT[name](tk, arg);
+      return true;
     } catch (e) {
       if (e !== CANCEL) console.error(e);
+      return false;
     }
   }
 
@@ -491,6 +972,7 @@ export function createActivityDirector(world, haven) {
     boxTarget = 0;
     hideProps();
     if (carried && dragon) { dragon.mouth.remove(carried); carried = null; }
+    fly.onNose = false;
     dragon?.setPose({});
   }
 
@@ -502,6 +984,9 @@ export function createActivityDirector(world, haven) {
     travel: (d, target) => run('travel', d, target),
     visit: (d, to, look) => run('visit', d, { to, look }),
     walkTo: (d, point) => run('walkTo', d, point),
+    // Act out a little scene; resolves true if it finished, false if interrupted.
+    scene: (name, d, ctx) => run(name, d, ctx),
+    hasScene: (name) => !!ACT[name],
     stop,
   };
 }

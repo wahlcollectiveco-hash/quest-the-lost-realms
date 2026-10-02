@@ -8,6 +8,7 @@ let ctx = null;
 let master, sfxBus, ambBus, windGain, waterGain, waterFilter;
 let settings = { sfx: true, ambient: true, ambientVol: 0.5 };
 let night = false;
+let muted = false; // the quick mute on the focus timer
 let location = 'haven';
 let critterTimer = null;
 
@@ -141,6 +142,7 @@ function cricket() {
 function applySettings() {
   if (!ctx) return;
   const now = ctx.currentTime;
+  master.gain.setTargetAtTime(muted ? 0 : 0.9, now, 0.15);
   const amb = settings.ambient ? 0.35 * settings.ambientVol : 0;
   ambBus.gain.setTargetAtTime(amb, now, 0.8);
   sfxBus.gain.setTargetAtTime(settings.sfx ? 1 : 0, now, 0.05);
@@ -214,6 +216,8 @@ export const audio = {
     });
   },
   set(next) { Object.assign(settings, next); applySettings(); },
+  // Silence everything for now, without changing the saved sound settings.
+  mute(v) { muted = !!v; applySettings(); },
   setNight(v) { if (night !== v) { night = v; applySettings(); scheduleCritters(); } },
   setLocation(v) { location = v; applySettings(); },
 };

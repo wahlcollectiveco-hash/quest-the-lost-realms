@@ -689,6 +689,45 @@ body[data-screen="clip"] .caption { bottom: 28px; top: auto; left: 50%; }
 body[data-screen="clip"] .discovery, body[data-screen="vale"] .discovery { left: 50%; }
 body:has(.discovery.show) .caption { opacity: 0; }
 
+/* ---------- Thought bubbles over a character's head ---------- */
+.bubble {
+  position: fixed; left: 0; top: 0; z-index: 24; width: max-content; max-width: min(300px, calc(100vw - 28px));
+  padding: 10px 15px 11px; border-radius: 22px; background: #fffdf6; border: 1px solid var(--line); box-shadow: var(--shadow);
+  font: 600 0.98rem/1.36 var(--sans); color: var(--ink); text-align: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.25s ease; will-change: transform; cursor: pointer;
+}
+.bubble.show { opacity: 1; pointer-events: auto; }
+.bubble.interactive { cursor: default; }
+.bubble p { margin: 0; }
+.bubble .b-name { font-size: 0.68rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold-deep); margin-bottom: 2px; }
+.bubble .b-form { display: flex; gap: 6px; margin-top: 9px; }
+.bubble .b-form input {
+  flex: 1; min-width: 0; width: 170px; padding: 7px 11px; border-radius: 999px; border: 1px solid var(--line); background: #fff;
+  font: 600 16px var(--sans); color: var(--ink);
+}
+.bubble .b-actions { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 9px; }
+.bubble .b-form + .b-actions { margin-top: 6px; }
+.bubble .b-form + .b-actions .btn { background: none; border: 0; box-shadow: none; padding: 2px 8px; font-size: 0.78rem; color: var(--ink-faint); text-decoration: underline; }
+/* the little trail of circles down to the thinker */
+.bubble i { position: absolute; left: var(--tail, 50%); border-radius: 50%; background: #fffdf6; border: 1px solid var(--line); box-shadow: 0 2px 5px rgba(52, 40, 18, 0.12); }
+.bubble i:nth-of-type(1) { width: 13px; height: 13px; bottom: -11px; margin-left: -9px; }
+.bubble i:nth-of-type(2) { width: 7px; height: 7px; bottom: -21px; margin-left: -1px; }
+.bubble.pinned i { display: none; }
+
+/* ---------- Sound on/off on the focus timer ---------- */
+.focus-card { position: relative; }
+.sound-toggle {
+  position: absolute; top: 12px; right: 12px; display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px 6px 9px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.6);
+  font: 700 0.78rem var(--sans); color: var(--ink-soft); cursor: pointer;
+}
+.sound-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.sound-toggle .slash { display: none; }
+.sound-toggle[aria-pressed="false"] { color: var(--ink-faint); }
+.sound-toggle[aria-pressed="false"] .waves { display: none; }
+.sound-toggle[aria-pressed="false"] .slash { display: inline; }
+@media (min-width: 561px) { .sound-toggle { top: auto; bottom: 14px; right: 16px; } }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }

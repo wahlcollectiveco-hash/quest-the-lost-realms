@@ -40,7 +40,7 @@ function buildWing(M) {
 
 function flower(scale = 1) {
   const g = new THREE.Group();
-  const petal = std(0xfbe3ec, { roughness: 0.6 });
+  const petal = std(0xa9d6f7, { roughness: 0.6 });
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * Math.PI * 2;
     const p = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), petal);
@@ -252,7 +252,7 @@ export function createDragon(def) {
 
   // ---- Behaviour ----
   // Poses blend smoothly toward their targets; activities set them.
-  const pose = { walk: 0, headDown: 0, nibble: 0, sweep: 0, lie: 0, sleep: 0, fly: 0, bank: 0 };
+  const pose = { walk: 0, headDown: 0, nibble: 0, sweep: 0, lie: 0, sleep: 0, fly: 0, bank: 0, lookUp: 0 };
   const poseTarget = { ...pose };
   function setPose(p = {}) {
     for (const k in poseTarget) poseTarget[k] = p[k] ?? 0;
@@ -271,7 +271,7 @@ export function createDragon(def) {
     const t = time + phase;
     const k = 1 - Math.exp(-dt * 4);
     for (const key in pose) pose[key] += (poseTarget[key] - pose[key]) * k;
-    const { walk, headDown, nibble, sweep, lie, sleep, fly, bank } = pose;
+    const { walk, headDown, nibble, sweep, lie, sleep, fly, bank, lookUp } = pose;
 
     const breath = Math.sin(t * (1.7 - sleep * 0.9));
     torso.scale.set(1 + 0.012 * breath, (1 + 0.022 * breath) * (1 - 0.12 * lie), 1 + 0.012 * breath);
@@ -311,18 +311,32 @@ export function createDragon(def) {
         flap = Math.sin(a * 6) * 0.3 * Math.sin(Math.PI * p);
         tilt = Math.sin(a * 1.5) * 0.08;
         if (p >= 1) action = null;
+      } else if (action.kind === 'sneeze') {
+        // a slow wind-up, then a quick snap forward
+        const p = Math.min(1, a / 1.1);
+        nod = p < 0.6 ? -0.4 * (p / 0.6) : -0.4 + 1.0 * Math.sin(Math.PI * Math.min(1, (p - 0.6) / 0.4));
+        hop = p > 0.6 ? Math.sin(Math.PI * (p - 0.6) / 0.4) * 0.18 : 0;
+        flap = p > 0.6 ? Math.sin(a * 20) * 0.3 * (1 - p) : 0;
+        if (p >= 1) action = null;
+      } else if (action.kind === 'stretch') {
+        // wings spread wide, chin up
+        const p = Math.min(1, a / 2.4);
+        const e = Math.sin(Math.PI * p);
+        flap = e * 0.85;
+        nod = -0.28 * e;
+        if (p >= 1) action = null;
       }
     }
     rig.position.y = hop + Math.abs(Math.sin(t * 9)) * 0.07 * walk - 0.42 * lie;
     rig.rotation.z = Math.sin(t * 9) * 0.035 * walk + bank;
     rig.rotation.x = 0.5 * fly + 0.22 * lie;
 
-    const wander = 1 - Math.min(1, Math.max(headDown, lie, fly * 0.7));
+    const wander = 1 - Math.min(1, Math.max(headDown, lie, fly * 0.7, lookUp * 0.7));
     head.position.y = 1.98 + 0.025 * Math.sin(t * 1.7 - 0.6) - 0.38 * headDown - 0.22 * lie;
     head.position.z = 0.26 + 0.22 * headDown + 0.15 * lie;
     head.rotation.y = (0.28 * Math.sin(t * 0.33) + 0.12 * Math.sin(t * 0.91)) * wander + Math.sin(t * 1.6) * 0.45 * sweep;
     head.rotation.x = 0.04 * Math.sin(t * 1.7 - 0.6) - 0.05 + 0.75 * headDown + 0.5 * lie
-      + Math.max(0, Math.sin(t * 7)) * 0.14 * nibble - 0.35 * fly + nod;
+      + Math.max(0, Math.sin(t * 7)) * 0.14 * nibble - 0.35 * fly - 0.5 * lookUp + nod;
     head.rotation.z = tilt;
 
     tailJoints.forEach((j, i) => {
@@ -356,5 +370,5 @@ export function createDragon(def) {
     root.rotation.y = Math.atan2(x - root.position.x, z - root.position.z);
   }
 
-  return { def, root, mouth, update, react, setPose, faceTowards };
+  return { def, root, head, mouth, update, react, setPose, faceTowards };
 }

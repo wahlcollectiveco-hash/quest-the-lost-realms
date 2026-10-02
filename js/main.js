@@ -23,7 +23,7 @@ import { createHatchlings } from './world/hatchlings.js';
 import { createCollection } from './ui/collection.js';
 import { byId, inHaven } from './data/discoveries.js';
 import {
-  rewardQuest, eggFraction, eggPalette, eggReady, eggStage, hatchEgg, foundOf, openChest, grant,
+  rewardQuest, eggFraction, eggPalette, eggReady, eggStage, eggNeed, hatchEgg, foundOf, openChest, grant,
 } from './rewards.js';
 import { $, $$, esc, say, tell, celebrate, hideCelebrate } from './ui/common.js';
 import { createAbilities, ABILITY_LINES } from './world/abilities.js';
@@ -31,6 +31,8 @@ import { createFlowerTrail } from './world/trail.js';
 import { havenWalkable } from './world/haven.js';
 import { valeWalkable } from './world/vale.js';
 import { prefersReducedMotion } from './ui/settings.js';
+import { createBubbles } from './ui/bubble.js';
+import { createMoments } from './moments.js';
 
 const world = createWorld($('#world'));
 const haven = buildHaven(world, { say });
@@ -71,6 +73,28 @@ const garden = createGarden(world, haven);
 const hatchlings = createHatchlings(world, haven, { say });
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Thought bubbles, and what happens when you tap your dragon.
+const bubbles = createBubbles(world);
+const moments = createMoments({
+  world, director, abilities, bubbles, haven,
+  sparkle: garden.sparkle,
+  getCompanion: () => companion,
+  getWhere: () => where,
+  isBusy: () => busy || touring,
+  walkable: (x, z) => (where === 'vale' ? valeWalkable(x, z) : havenWalkable(x, z)),
+  onStartFocus: (id) => focus.begin(id),
+  onNewQuest: () => $('#new-quest').click(),
+  // Helping your dragon warms the egg a little (once a day).
+  onFavor() {
+    if (eggReady() || hatching) return;
+    state.hatch.warmth = Math.min(eggNeed(), state.hatch.warmth + 1);
+    save();
+    haven.egg.setLook(eggPalette().egg, eggFraction());
+    haven.egg.swell(3);
+    say(eggReady() ? 'The egg felt that kindness. It’s ready to hatch!' : 'The egg felt that kindness, and glows a little warmer.', 4600);
+  },
+});
+
 // Bring back everything discovered so far.
 for (const id of Object.keys(state.found)) if (inHaven(byId(id) || {})) garden.place(id);
 garden.setTreasures(foundOf('treasure').length);
@@ -102,6 +126,7 @@ function goTo(name, dur) {
 }
 
 function setScreen(name) {
+  if (name !== document.body.dataset.screen) bubbles.hide();
   document.body.dataset.screen = name;
   updateOffset();
 }
@@ -289,17 +314,7 @@ function enterHaven(flyIn = true) {
   if (!companion) {
     companion = spawn(state.dragon, haven.anchors.home);
   }
-  world.onTap(companion.root, () => {
-    if (busy) return;
-    // Sometimes it shows off its special move; otherwise a little reaction.
-    if (where === 'haven' && Math.random() < 0.4) {
-      abilities.perform(companion);
-      say(ABILITY_LINES[def.id](def.name), 3400);
-    } else {
-      companion.react(Math.random() < 0.5 ? 'hop' : 'tilt');
-      say(pickLine(def.lines.tap), 3400);
-    }
-  });
+  world.onTap(companion.root, () => moments.tap());
   applyMeadow();
   $('#haven-sub').textContent = `Verdant Vale · with ${def.name}`;
   document.body.dataset.dragonName = def.name;
@@ -394,18 +409,20 @@ async function showRewards(items, { zoom = true } = {}) {
     const it = items[i];
     const cinematic = zoom && where === 'haven';
     if (cinematic && inHaven(it)) {
-      await cfly(...lookAtSpot(garden.positionOf(it.id)), 1.2);
+      await cfly(...lookAtSpot(garden.positionOf(it.id)), 2.0);
+      await cwait(500);
       garden.place(it.id, true);
     } else if (cinematic && it.kind === 'treasure') {
-      await cfly(...lookAtSpot(garden.pilePosition(), 3.8), 1.2);
+      await cfly(...lookAtSpot(garden.pilePosition(), 3.8), 2.0);
+      await cwait(500);
       garden.setTreasures(foundOf('treasure').length);
       garden.popTreasure(it.color);
     } else if (cinematic && companion) {
       // keys, map pieces and story fragments: the dragon digs them up
       const p = companion.root.position;
-      await cfly(...lookAtSpot(p, 4.2), 1.0);
+      await cfly(...lookAtSpot(p, 4.2), 1.8);
       companion.setPose({ headDown: 1, nibble: 1 });
-      await cwait(1300);
+      await cwait(2400);
       companion.setPose({});
       companion.react('hop');
       garden.sparkle(p, 30);
@@ -413,7 +430,7 @@ async function showRewards(items, { zoom = true } = {}) {
       garden.place(it.id, true);
     }
     sfx.discovery();
-    await cwait(900);
+    await cwait(cinematic ? 2400 : 900);
     await collection.showDiscovery(it, { more: i < items.length - 1 });
   }
   garden.setTreasures(foundOf('treasure').length);
@@ -444,7 +461,7 @@ function endClip() {
   hideCelebrate();
   setScreen('haven');
   world.controls.enabled = true;
-  goTo('haven', clipSkip ? 0.4 : 1.4);
+  goTo('haven', clipSkip ? 0.4 : 2.2);
   if (companion) faceCamera(companion);
   busy = false;
   clipPlaying = false;
@@ -461,19 +478,31 @@ async function completionClip(q, r, prefix) {
   const p = companion.root.position;
   const ry = companion.root.rotation.y;
   const f = new THREE.Vector3(Math.sin(ry), 0, Math.cos(ry));
-  await cfly([p.x + f.x * 5 + f.z * 0.9, p.y + 2.0, p.z + f.z * 5 - f.x * 0.9], [p.x, p.y + 1.15, p.z], 1.0);
-  const ms = abilities.perform(companion);
+  // Everything here is unhurried on purpose: arrive, take a breath, then watch.
+  await cfly([p.x + f.x * 5 + f.z * 0.9, p.y + 2.0, p.z + f.z * 5 - f.x * 0.9], [p.x, p.y + 1.15, p.z], 1.8);
+  companion.react('celebrate');
   garden.sparkle(p, 20);
-  say(ABILITY_LINES[def.id](def.name), ms + 400);
-  await cwait(ms + 500);
+  say(pickLine(def.lines.complete), 3000);
+  await cwait(2200);
+  const ms = abilities.perform(companion);
+  say(ABILITY_LINES[def.id](def.name), ms + 1800);
+  // drift in a little closer while the move plays
+  cfly([p.x + f.x * 3.9 + f.z * 0.5, p.y + 1.8, p.z + f.z * 3.9 - f.x * 0.5], [p.x, p.y + 1.2, p.z], (ms + 1600) / 1000);
+  await cwait(ms + 1800);
   // 2. the egg gets a little warmer
   if (r) {
     const e = haven.egg.worldPosition();
-    await cfly([e.x - 1.9, 1.6, e.z + 2.9], [e.x, 0.55, e.z], 0.9);
+    await cfly([e.x - 1.9, 1.6, e.z + 2.9], [e.x, 0.55, e.z], 1.8);
+    await cwait(500);
     haven.egg.setLook(eggPalette().egg, eggFraction());
-    haven.egg.pulse();
-    say(r.nowReady ? 'The egg is wiggling. It’s ready to hatch!' : 'The egg glows a little warmer.', 2400);
+    haven.egg.swell(clipSkip ? 0.3 : 3.6);
+    garden.sparkle(e, 14);
+    say(r.nowReady ? 'The egg is wiggling. It’s ready to hatch!' : 'The egg glows a little warmer.', 4200);
+    // slowly lean in toward the glow
+    cfly([e.x - 1.3, 1.25, e.z + 2.0], [e.x, 0.55, e.z], 3.4);
     await cwait(1900);
+    haven.egg.pulse();
+    await cwait(2300);
   }
   hideCelebrate();
   // 3. the reward, in action
@@ -725,6 +754,8 @@ const story = createStory({
   say,
   tell,
   whenCalm,
+  bubbles,
+  overHead: moments.overHead,
   sparkle: garden.sparkle,
   onBegin(id) {
     id === 'door-waking' || id === 'new-realm' ? sfx.door() : sfx.moment();
@@ -897,4 +928,4 @@ setTimeout(hideLoading, 2500); // in case frames are throttled
 // Debug handle for local development only.
 story.check();
 
-if (location.hostname === 'localhost') window.quest = { story, world, director, garden, haven, vale, state, reveal, hatchSequence, refreshDoor, travelToVale, returnToHaven, openDoorSequence, get companion() { return companion; } };
+if (location.hostname === 'localhost') window.quest = { story, world, director, moments, bubbles, focus, garden, haven, vale, state, reveal, hatchSequence, refreshDoor, travelToVale, returnToHaven, openDoorSequence, get companion() { return companion; } };

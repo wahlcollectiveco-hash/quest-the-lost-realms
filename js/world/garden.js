@@ -333,7 +333,7 @@ export function createGarden(world, haven) {
       const light = new THREE.PointLight('#ffd98a', 0, 7, 2);
       light.position.set(x, y + 1.2, z + 0.6);
       scene.add(light);
-      world.tween(1.6, (p) => {
+      world.tween(2.6, (p) => {
         const pop = p < 0.6 ? easeOut(p / 0.6) * 1.15 : 1.15 - 0.15 * ((p - 0.6) / 0.4);
         obj.scale.setScalar(Math.max(0.001, pop));
         obj.rotation.z = Math.sin(p * 26) * 0.07 * (1 - p);

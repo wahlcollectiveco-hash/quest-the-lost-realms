@@ -812,15 +812,15 @@ export function buildHaven(world, { say }) {
   eggLight.position.set(0, 0.8, 0.3);
   nest.add(eggLight);
 
-  const eggState = { warmth: 0, tint: '#e8dcc2', pulse: 0, wobble: 0, shake: 0 };
+  const eggState = { warmth: 0, tint: '#e8dcc2', pulse: 0, wobble: 0, shake: 0, swell: 0 };
   paintEgg(eggState.tint, 0);
   updaters.push((t, dt) => {
     const w = eggState.warmth;
     eggState.pulse = Math.max(0, eggState.pulse - dt * 0.8);
     eggState.wobble = Math.max(0, eggState.wobble - dt);
     const glow = 0.3 + 0.7 * w;
-    eggMat.emissiveIntensity = glow * (0.75 + 0.25 * Math.sin(t * (1.1 + w))) + eggState.pulse * 1.4 + eggState.shake * 2.5;
-    eggLight.intensity = (w >= 1 ? 2.5 + Math.sin(t * 2) : 0) + eggState.pulse * 4 + eggState.shake * 8;
+    eggMat.emissiveIntensity = glow * (0.75 + 0.25 * Math.sin(t * (1.1 + w))) + eggState.pulse * 1.4 + eggState.shake * 2.5 + eggState.swell * 1.6;
+    eggLight.intensity = (w >= 1 ? 2.5 + Math.sin(t * 2) : 0) + eggState.pulse * 4 + eggState.shake * 8 + eggState.swell * 5;
     // Idle wiggles get more frequent as it warms; a ready egg wiggles a lot.
     const every = w >= 1 ? 0.9 : 0.985 - w * 0.03;
     const idle = Math.sin(t * (0.5 + w)) > every ? Math.sin(t * 22) * (0.04 + w * 0.05) : 0;
@@ -844,6 +844,8 @@ export function buildHaven(world, { say }) {
     },
     pulse() { eggState.pulse = 1; eggState.wobble = 0.6; },
     wobble() { eggState.wobble = 1; },
+    // A slow, warm glow that swells and fades over `dur` seconds.
+    swell(dur = 3) { return world.tween(dur, (p) => { eggState.swell = Math.sin(Math.PI * p); }, (p) => p).then(() => { eggState.swell = 0; }); },
     // Builds up shaking and glow over `dur` seconds.
     shake(dur) { return world.tween(dur, (p) => { eggState.shake = p; }, (p) => p * p); },
     burst() {
