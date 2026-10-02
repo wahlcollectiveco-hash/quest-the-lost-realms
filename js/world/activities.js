@@ -1,6 +1,7 @@
 // Calm things the dragon does while you focus. Each activity is a small
 // async script; stop() cancels it at the next frame.
 import * as THREE from 'three';
+import { toon } from './style.js';
 
 const V = THREE.Vector3;
 const TAU = Math.PI * 2;
@@ -31,7 +32,7 @@ export function chooseActivity(dragonId, avoid) {
   return w[0][0];
 }
 
-const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.8, ...o });
+const std = (color, o = {}) => toon(color, o);
 function shadowed(g) {
   g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   return g;

@@ -2,11 +2,12 @@
 // Quill the Dragon Historian, Hazel the woodland fox, and Lune, the moth-like
 // wanderer who turns up in strange places.
 import * as THREE from 'three';
+import { toon } from './style.js';
 import { createDragon } from './dragon.js';
 
 const V = THREE.Vector3;
 const TAU = Math.PI * 2;
-const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.75, ...o });
+const std = (color, o = {}) => toon(color, o);
 function add(parent, geo, material, pos = [0, 0, 0], rot = [0, 0, 0], scale) {
   const m = new THREE.Mesh(geo, material);
   m.position.set(...pos);

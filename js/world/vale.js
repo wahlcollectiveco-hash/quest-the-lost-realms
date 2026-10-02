@@ -2,7 +2,8 @@
 // with deep forest, old ruins, a great waterfall, a stone bridge, three
 // rune stones that wake as you make progress, and a few hidden spots.
 import * as THREE from 'three';
-import { rng, mat, mesh, blobGeo, canvas, tex, drawRune, VALE_CENTER } from './haven.js';
+import { rng, mat, mesh, blobGeo, canvas, tex, drawRune, undersideMat, VALE_CENTER } from './haven.js';
+import { ramp, toon, foliageGeo, leafMat, makeGrass, flowerGeo, flowerCentreGeo, makeWater } from './style.js';
 import { easeOut } from './scene.js';
 
 const V = THREE.Vector3;
@@ -111,16 +112,22 @@ export function buildVale(world) {
   // ---- Ground ----
   const [gc, g] = canvas(1024, 1024);
   const toC = (x, z) => [((x / RI) + 1) * 512, ((z / RI) + 1) * 512];
-  g.fillStyle = '#7fb257';
+  g.fillStyle = '#74b84e';
   g.fillRect(0, 0, 1024, 1024);
-  const blotch = ['#74a84f', '#8ebd5f', '#99c468', '#679746', '#a4c86c', '#83b35a'];
-  for (let i = 0; i < 320; i++) {
-    const x = R(0, 1024), y = R(0, 1024), r = R(20, 90);
+  const blotch = ['#66a845', '#86c658', '#96d262', '#5a9a3f', '#aadb6c', '#7abd52', '#bce27a'];
+  for (let i = 0; i < 340; i++) {
+    const x = R(0, 1024), y = R(0, 1024), r = R(24, 100);
     const grad = g.createRadialGradient(x, y, 0, x, y, r);
-    grad.addColorStop(0, pick(blotch) + '99');
+    grad.addColorStop(0, pick(blotch) + 'aa');
     grad.addColorStop(1, pick(blotch) + '00');
     g.fillStyle = grad;
     g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  for (let i = 0; i < 3000; i++) {
+    g.fillStyle = pick(blotch) + '66';
+    g.beginPath();
+    g.ellipse(R(0, 1024), R(0, 1024), R(2, 7), R(5, 14), R(0, Math.PI), 0, TAU);
+    g.fill();
   }
   const stroke = (pts, w, color, blur) => {
     g.save(); g.filter = `blur(${blur}px)`; g.strokeStyle = color; g.lineWidth = w; g.lineCap = g.lineJoin = 'round';
@@ -130,15 +137,15 @@ export function buildVale(world) {
     const [cx, cy] = toC(x, z);
     g.save(); g.filter = `blur(${blur}px)`; g.fillStyle = color; g.beginPath(); g.arc(cx, cy, (r / RI) * 512, 0, TAU); g.fill(); g.restore();
   };
-  stroke(pathPts, 40, '#c9b286cc', 8);
-  stroke(streamPts, 70, '#cdbb8a', 6);
-  disc(...L.pool, L.poolR + 0.6, '#d3c08e');
-  disc(...L.ruins, 3.9, '#b8ad92', 10);
-  disc(...L.arrive, 1.9, '#c9bea4', 6);
-  const ground = mesh(new THREE.CircleGeometry(RI, 110), new THREE.MeshStandardMaterial({ map: tex(gc), roughness: 1 }), { rot: [-Math.PI / 2, 0, 0], cast: false });
+  stroke(pathPts, 40, '#e2cc98dd', 8);
+  stroke(streamPts, 70, '#e0cf9c', 6);
+  disc(...L.pool, L.poolR + 0.6, '#e6d49e');
+  disc(...L.ruins, 3.9, '#cdc2a6', 10);
+  disc(...L.arrive, 1.9, '#d8ccb0', 6);
+  const ground = mesh(new THREE.CircleGeometry(RI, 110), new THREE.MeshToonMaterial({ map: tex(gc), gradientMap: ramp }), { rot: [-Math.PI / 2, 0, 0], cast: false });
   group.add(ground);
-  group.add(mesh(new THREE.CylinderGeometry(RI, RI - 0.5, 1.2, 110, 1, true), mat('#6f7f45'), { pos: [0, -0.6, 0], cast: false }));
-  const under = new THREE.ConeGeometry(RI - 0.5, 13, 44, 5, true);
+  group.add(mesh(new THREE.CylinderGeometry(RI, RI - 0.5, 1.2, 110, 1, true), mat('#5f9a40'), { pos: [0, -0.6, 0], cast: false }));
+  const under = new THREE.CylinderGeometry(0.02, RI - 0.5, 13, 52, 8, true);
   {
     const p = under.attributes.position;
     const v = new V();
@@ -151,21 +158,21 @@ export function buildVale(world) {
     }
     under.computeVertexNormals();
   }
-  group.add(mesh(under, mat('#8a6c4c', { flatShading: true, side: THREE.DoubleSide }), { pos: [0, -7.7, 0], rot: [Math.PI, 0, 0], cast: false }));
+  group.add(mesh(under, undersideMat(under, 6.5), { pos: [0, -7.7, 0], rot: [Math.PI, 0, 0], cast: false }));
 
   // ---- Water ----
   const flow = flowTexture();
-  const waterMat = new THREE.MeshStandardMaterial({ map: flow, roughness: 0.12, metalness: 0.05, side: THREE.DoubleSide });
+  const waterMat = makeWater(1);
   group.add(mesh(ribbon(streamCurve, 1.4), waterMat, { cast: false }));
   const poolTex = flow.clone();
   poolTex.repeat.set(3, 0.6);
-  const pool = mesh(new THREE.CircleGeometry(L.poolR, 40), new THREE.MeshStandardMaterial({ map: poolTex, roughness: 0.1, color: '#dff4f6' }), { pos: [L.pool[0], 0.05, L.pool[1]], rot: [-Math.PI / 2, 0, 0], cast: false });
+  const pool = mesh(new THREE.CircleGeometry(L.poolR, 40), makeWater(0), { pos: [L.pool[0], 0.05, L.pool[1]], rot: [-Math.PI / 2, 0, 0], cast: false });
   group.add(pool);
   const fallTex = flow.clone();
   fallTex.repeat.set(1, 2.4);
-  const fallMat = new THREE.MeshStandardMaterial({ map: fallTex, roughness: 0.2, emissive: '#bfe8ef', emissiveIntensity: 0.25, side: THREE.DoubleSide });
+  const fallMat = makeWater(2);
   const edgeFallTex = flow.clone();
-  const edgeFallMat = new THREE.MeshStandardMaterial({ map: edgeFallTex, roughness: 0.2, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
+  const edgeFallMat = makeWater(2);
   updaters.push((t, dt) => {
     flow.offset.y -= dt * 0.4;
     fallTex.offset.y += dt * 1.0;
@@ -174,12 +181,12 @@ export function buildVale(world) {
   });
 
   // Stones around the pool
-  const stoneMats = [mat('#a8a291', { flatShading: true }), mat('#948f80', { flatShading: true }), mat('#bdb5a0', { flatShading: true })];
+  const stoneMats = [mat('#b9b2a2'), mat('#a39d8f'), mat('#cfc7b2')];
   for (let i = 0; i < 18; i++) {
     const a = (i / 18) * TAU + R(-0.1, 0.1);
     if (Math.abs(Math.atan2(Math.sin(a - 0.9), Math.cos(a - 0.9))) < 0.35) continue; // where the stream leaves
     const r = L.poolR + R(0.05, 0.3);
-    group.add(mesh(new THREE.DodecahedronGeometry(R(0.2, 0.4), 0), pick(stoneMats), {
+    group.add(mesh(blobGeo(R(0.22, 0.42), 0.12, 10, 8), pick(stoneMats), {
       pos: [L.pool[0] + Math.cos(a) * r, 0.1, L.pool[1] + Math.sin(a) * r], rot: [R(0, 3), R(0, 3), 0], scale: [1, 0.6, 1],
     }));
   }
@@ -187,12 +194,12 @@ export function buildVale(world) {
   // Great cliff and waterfall
   const cliff = new THREE.Group();
   cliff.position.set(L.cliff[0], 0, L.cliff[1]);
-  const cliffMats = [mat('#9a947f', { flatShading: true }), mat('#857f6f', { flatShading: true }), mat('#aaa28b', { flatShading: true })];
+  const cliffMats = [mat('#a9a08c'), mat('#958d7c'), mat('#bcb39c')];
   for (const [x, y, z, s] of [[0, 1.5, 0, 3], [2.2, 1.2, -1.4, 2.4], [-2, 1.2, 1.2, 2.4], [0.4, 4, -0.8, 2.6], [-1.4, 3.6, 0.6, 2], [1.8, 3.6, 0.2, 1.8], [0.2, 6.2, -1.2, 2], [-1, 7.4, -0.6, 1.4], [1.2, 7.2, -0.8, 1.4]]) {
-    cliff.add(mesh(new THREE.DodecahedronGeometry(s, 1), pick(cliffMats), { pos: [x, y, z], rot: [R(0, 3), R(0, 3), R(0, 3)] }));
+    cliff.add(mesh(blobGeo(s, 0.14, 16, 12), pick(cliffMats), { pos: [x, y, z], rot: [R(0, 3), R(0, 3), R(0, 3)], scale: [1, 0.92, 1] }));
   }
   for (const [x, y, z, s] of [[0.2, 8.6, -1, 1.2], [-1.6, 5.4, 0.8, 0.9], [2, 5.2, 0.4, 0.8], [-2.4, 2.6, 1.6, 0.8]]) {
-    cliff.add(mesh(blobGeo(s, 0.1), mat('#6f9c4c'), { pos: [x, y, z], scale: [1.3, 0.5, 1.3] }));
+    cliff.add(mesh(foliageGeo(s, 0.1), leafMat('#6fb44c'), { pos: [x, y, z], scale: [1.3, 0.5, 1.3] }));
   }
   group.add(cliff);
   const fall = mesh(new THREE.PlaneGeometry(2.2, 8.4, 1, 10), fallMat, { cast: false });
@@ -356,10 +363,11 @@ export function buildVale(world) {
   const holeMat = mat('#2a1d13', { roughness: 1 });
   const hole = mesh(new THREE.CircleGeometry(0.42, 20), holeMat, { pos: [0, 1.4, 1.36], rot: [-0.18, 0, 0], scale: [1, 1.35, 1], cast: false });
   hollow.add(hole);
-  const leafMats = ['#4f7f38', '#5e8f3e', '#6fa04a', '#4a7a45'].map((c) => mat(c, { roughness: 0.95 }));
+  const LEAF = ['#3f8a3c', '#4f9a3d', '#63ad45', '#58a34a', '#7cc04f'];
+  const leafMats = LEAF.map((c) => leafMat(c));
   const crownH = new THREE.Group();
   crownH.position.y = 4.6;
-  for (let i = 0; i < 6; i++) crownH.add(mesh(blobGeo(R(1.4, 2), 0.07), pick(leafMats), { pos: [R(-1.4, 1.4), R(0.2, 1.8), R(-1.4, 1.4)] }));
+  for (let i = 0; i < 8; i++) crownH.add(mesh(foliageGeo(R(1.3, 2), 0.1), pick(leafMats), { pos: [R(-1.6, 1.6), R(0.2, 1.9), R(-1.6, 1.6)] }));
   hollow.add(crownH);
   const glint = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color: '#fff6d0' }));
   glint.position.set(0.12, 1.3, 1.3);
@@ -383,12 +391,12 @@ export function buildVale(world) {
     caps.add(m);
   }
   glade.add(caps);
-  const bushMats = [mat('#4f7f38'), mat('#5a8a40'), mat('#46733a')];
+  const bushMats = [leafMat('#4a9440'), leafMat('#58a244'), leafMat('#3f8a3c')];
   const bushL = new THREE.Group();
   const bushR = new THREE.Group();
   for (let i = 0; i < 4; i++) {
-    bushL.add(mesh(blobGeo(R(0.6, 0.85), 0.08, 14, 10), pick(bushMats), { pos: [-0.4 - i * 0.45, 0.5, 0.9 + R(-0.2, 0.2)], scale: [1, 0.9, 1] }));
-    bushR.add(mesh(blobGeo(R(0.6, 0.85), 0.08, 14, 10), pick(bushMats), { pos: [0.4 + i * 0.45, 0.5, 0.9 + R(-0.2, 0.2)], scale: [1, 0.9, 1] }));
+    bushL.add(mesh(foliageGeo(R(0.6, 0.85), 0.1, 14, 10), pick(bushMats), { pos: [-0.4 - i * 0.45, 0.5, 0.9 + R(-0.2, 0.2)], scale: [1, 0.9, 1] }));
+    bushR.add(mesh(foliageGeo(R(0.6, 0.85), 0.1, 14, 10), pick(bushMats), { pos: [0.4 + i * 0.45, 0.5, 0.9 + R(-0.2, 0.2)], scale: [1, 0.9, 1] }));
   }
   glade.add(bushL, bushR);
   glade.lookAt(at(0, 8));
@@ -418,7 +426,14 @@ export function buildVale(world) {
     t.add(mesh(new THREE.CylinderGeometry(0.17 * s, 0.32 * s, h, 7), rand() < 0.2 ? birchMat : trunkMat, { pos: [0, h / 2, 0] }));
     const crown = new THREE.Group();
     crown.position.y = h;
-    for (let i = 0; i < 3 + Math.floor(R(0, 3)); i++) crown.add(mesh(blobGeo(R(1, 1.5) * s, 0.07), pick(leafMats), { pos: [R(-0.8, 0.8) * s, R(0.2, 1.3) * s, R(-0.8, 0.8) * s] }));
+    const base = rand() < 0.08 ? leafMat('#f4b6cf') : pick(leafMats);
+    const n = 5 + Math.floor(R(0, 3));
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU + R(-0.4, 0.4);
+      const ring = i === 0 ? 0 : R(0.55, 1.0);
+      const r = (i === 0 ? R(1.25, 1.5) : R(0.8, 1.15)) * s;
+      crown.add(mesh(foliageGeo(r, 0.1), rand() < 0.7 ? base : pick(leafMats), { pos: [Math.cos(a) * ring * s, (i === 0 ? 0.9 : R(0.2, 1.0)) * s, Math.sin(a) * ring * s] }));
+    }
     t.add(crown);
     sway.push({ o: crown, ph: R(0, TAU), a: R(0.012, 0.026) });
     group.add(t);
@@ -427,8 +442,8 @@ export function buildVale(world) {
     const t = new THREE.Group();
     t.position.set(x, 0, z);
     t.add(mesh(new THREE.CylinderGeometry(0.12 * s, 0.22 * s, 1.3 * s, 6), trunkMat, { pos: [0, 0.65 * s, 0] }));
-    const pm = mat(pick(['#3f6e3e', '#4a7a45', '#406b48']), { roughness: 0.95 });
-    for (let i = 0; i < 4; i++) t.add(mesh(new THREE.ConeGeometry((1.5 - i * 0.32) * s, 1.8 * s, 9), pm, { pos: [0, (1.5 + i * 0.95) * s, 0] }));
+    const tiers = ['#2f7a46', '#388650', '#44945a', '#54a465'];
+    for (let i = 0; i < 4; i++) t.add(mesh(new THREE.ConeGeometry((1.5 - i * 0.32) * s, 1.8 * s, 10), mat(tiers[i]), { pos: [0, (1.5 + i * 0.95) * s, 0] }));
     group.add(t);
   }
   for (let ring = 0; ring < 2; ring++) {
@@ -450,62 +465,60 @@ export function buildVale(world) {
     do { x = R(-15, 15); z = R(-15, 12); tries++; } while (!isOpen(x, z, 0.5) && tries < 30);
     const b = new THREE.Group();
     b.position.set(x, 0, z);
-    for (let k = 0; k < 3; k++) b.add(mesh(blobGeo(R(0.45, 0.7), 0.08, 14, 10), pick(bushMats), { pos: [R(-0.4, 0.4), 0.35, R(-0.3, 0.3)], scale: [1, 0.8, 1] }));
+    for (let k = 0; k < 4; k++) b.add(mesh(foliageGeo(R(0.42, 0.7), 0.1, 14, 10), pick(bushMats), { pos: [R(-0.45, 0.45), R(0.3, 0.5), R(-0.35, 0.35)], scale: [1, 0.82, 1] }));
     group.add(b);
   }
 
   // ---- Grass + wildflowers ----
   {
-    const geo = new THREE.ConeGeometry(0.06, 0.4, 5);
-    geo.translate(0, 0.2, 0);
-    const N = 1300;
-    const im = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ roughness: 1 }), N);
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), col = new THREE.Color();
-    const shades = ['#6c9a45', '#7fae51', '#8dbb5c', '#5d8a3d', '#9ac466'];
-    let n = 0;
-    for (let tries = 0; n < N && tries < N * 6; tries++) {
+    const grassOK = (x, z) => {
+      if (Math.hypot(x, z) > RI - 0.4) return false;
+      const near = (p, r) => Math.hypot(x - p[0], z - p[1]) < r;
+      if (near(L.pool, L.poolR + 0.2) || near(L.cliff, 2.9) || near(L.ruins, 3.6) || near(L.arrive, 1.75) || near(L.hollow, 1.5)) return false;
+      if (minDist(streamPts, x, z) < 0.85) return false;
+      const dPath = minDist(pathPts, x, z);
+      if (dPath < 0.45 || (dPath < 0.9 && rand() < 0.6)) return false;
+      return true;
+    };
+    const spots = [];
+    for (let tries = 0; spots.length < 4200 && tries < 40000; tries++) {
       const x = R(-RI, RI), z = R(-RI, RI);
-      if (!isOpen(x, z)) continue;
-      e.set(R(-0.25, 0.25), R(0, TAU), R(-0.25, 0.25));
-      const s = R(0.6, 1.5);
-      m4.compose(new V(x, 0, z), q.setFromEuler(e), new V(s, s * R(0.8, 1.4), s));
-      im.setMatrixAt(n, m4);
-      im.setColorAt(n, col.set(pick(shades)));
-      n++;
+      if (grassOK(x, z)) spots.push([x, z]);
     }
-    im.count = n;
-    im.receiveShadow = true;
-    group.add(im);
+    group.add(makeGrass(spots, { perTuft: 4, height: 0.42 }));
   }
   {
-    const headGeo = new THREE.SphereGeometry(0.085, 8, 6);
-    headGeo.scale(1, 0.6, 1);
-    const stemGeo = new THREE.CylinderGeometry(0.012, 0.012, 1, 4);
+    const stemGeo = new THREE.CylinderGeometry(0.012, 0.014, 1, 4);
     stemGeo.translate(0, 0.5, 0);
-    const N = 700;
-    const heads = new THREE.InstancedMesh(headGeo, new THREE.MeshStandardMaterial({ roughness: 0.7 }), N);
-    const stems = new THREE.InstancedMesh(stemGeo, mat('#5e8c3c'), N);
-    const palette = ['#f6c7d6', '#f3d46c', '#cdb6ec', '#ffffff', '#f19a78', '#9ec5f0', '#f6c7d6', '#ffffff'];
-    const m4 = new THREE.Matrix4(), col = new THREE.Color(), q = new THREE.Quaternion();
+    const N = 1100;
+    const heads = new THREE.InstancedMesh(flowerGeo(), toon('#ffffff'), N);
+    const centres = new THREE.InstancedMesh(flowerCentreGeo(), toon('#f6c945'), N);
+    const stems = new THREE.InstancedMesh(stemGeo, mat('#4f9a3d'), N);
+    const palette = ['#f9b8d0', '#f7d35c', '#c9b0f0', '#ffffff', '#f79a70', '#8fc4f4', '#f9b8d0', '#ffffff', '#f47a8a'];
+    const m4 = new THREE.Matrix4(), col = new THREE.Color(), q = new THREE.Quaternion(), e = new THREE.Euler();
     let n = 0;
-    for (let c = 0; c < 44 && n < N; c++) {
+    for (let c = 0; c < 60 && n < N; c++) {
       let cx, cz, tries = 0;
-      do { cx = R(-14, 14); cz = R(-14, 14); tries++; } while (!isOpen(cx, cz, 0.3) && tries < 30);
+      do { cx = R(-14.5, 14.5); cz = R(-14.5, 14.5); tries++; } while (!isOpen(cx, cz, 0.2) && tries < 30);
       const hue = pick(palette), hue2 = pick(palette);
-      for (let k = 0; k < Math.floor(R(10, 24)) && n < N; k++) {
+      const count = Math.floor(R(10, 26));
+      for (let k = 0; k < count && n < N; k++) {
         const x = cx + R(-1.6, 1.6), z = cz + R(-1.6, 1.6);
         if (!isOpen(x, z)) continue;
-        const h = R(0.18, 0.42);
-        m4.compose(new V(x, h, z), q, new V(1, 1, 1));
+        const h = R(0.26, 0.48);
+        const sc = R(0.7, 1.15);
+        q.setFromEuler(e.set(R(-0.25, 0.25), R(0, TAU), R(-0.25, 0.25)));
+        m4.compose(new V(x, h, z), q, new V(sc, sc, sc));
         heads.setMatrixAt(n, m4);
+        centres.setMatrixAt(n, m4);
         heads.setColorAt(n, col.set(rand() < 0.75 ? hue : hue2));
-        m4.compose(new V(x, 0, z), q, new V(1, h, 1));
+        m4.compose(new V(x, 0, z), q.identity(), new V(1, h, 1));
         stems.setMatrixAt(n, m4);
         n++;
       }
     }
-    heads.count = stems.count = n;
-    group.add(heads, stems);
+    heads.count = centres.count = stems.count = n;
+    group.add(heads, centres, stems);
   }
 
   // ---- Butterflies ----

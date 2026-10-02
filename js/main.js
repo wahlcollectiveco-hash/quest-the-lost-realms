@@ -70,7 +70,7 @@ STONES.forEach((_, i) => vale.setStone(i, stoneState(i)));
 const VIEWS = {
   intro: { dir: [0.55, 0.42, 0.72], dist: 30, target: [0, 1, -1.5], fit: 0.9 },
   select: { dir: [0, 0.2, 1], dist: 9.2, target: [0, 0.75, 5.0], fit: 0.62 },
-  haven: { dir: [0.08, 0.5, 0.88], dist: 25, target: [-0.3, 0.9, -1.6], fit: 0.85 },
+  haven: { dir: [0.08, 0.38, 0.9], dist: 23, target: [-0.3, 1.1, -1.6], fit: 0.85 },
   vale: { dir: [0.06, 0.55, 0.84], dist: 33, target: [VALE_CENTER.x, VALE_CENTER.y + 0.8, VALE_CENTER.z + 0.5], fit: 0.85 },
 };
 function view(name) {

@@ -3,9 +3,10 @@
 // (root, update, react, faceTowards), so a real rigged model can replace
 // this file later without changing callers.
 import * as THREE from 'three';
+import { toon } from './style.js';
 
 const V = THREE.Vector3;
-const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0, ...o });
+const std = (color, o = {}) => toon(color, o);
 
 function limb(a, b, r, material) {
   const dir = new V().subVectors(b, a);

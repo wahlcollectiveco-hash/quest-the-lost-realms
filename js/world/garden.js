@@ -1,17 +1,13 @@
 // Discovered flowers and decorations take root in the Haven, plus a small
 // glittering pile by the chest that grows with each treasure found.
 import * as THREE from 'three';
+import { toon } from './style.js';
 import { easeOut } from './scene.js';
 
 const V = THREE.Vector3;
 const TAU = Math.PI * 2;
 
-const matCache = new Map();
-function mat(color, o = {}) {
-  const key = color + JSON.stringify(o);
-  if (!matCache.has(key)) matCache.set(key, new THREE.MeshStandardMaterial({ color, roughness: 0.8, ...o }));
-  return matCache.get(key);
-}
+const mat = (color, o = {}) => toon(color, o);
 function add(parent, geo, material, pos = [0, 0, 0], rot = [0, 0, 0], scale) {
   const m = new THREE.Mesh(geo, material);
   m.position.set(...pos);

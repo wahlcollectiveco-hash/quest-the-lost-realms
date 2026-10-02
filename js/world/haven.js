@@ -2,6 +2,7 @@
 // Style target: simple, soft shapes lit by warm golden light, with magic
 // glow used only on the Ancient Door, the egg and a few drifting motes.
 import * as THREE from 'three';
+import { ENV, ramp, toon, foliageGeo, leafMat, makeGrass, flowerGeo, flowerCentreGeo, makeWater, paintCloud } from './style.js';
 
 const V = THREE.Vector3;
 const TAU = Math.PI * 2;
@@ -20,12 +21,8 @@ const rand = rng(11);
 const R = (a, b) => a + (b - a) * rand();
 const pick = (arr) => arr[Math.floor(rand() * arr.length)];
 
-const matCache = new Map();
-export function mat(color, o = {}) {
-  const key = color + JSON.stringify(o);
-  if (!matCache.has(key)) matCache.set(key, new THREE.MeshStandardMaterial({ color, roughness: 0.88, ...o }));
-  return matCache.get(key);
-}
+// Every solid thing in the world uses the shared storybook shading (style.js).
+export const mat = (color, o = {}) => toon(color, o);
 export function mesh(geo, material, { pos, rot, scale, cast = true } = {}) {
   const m = new THREE.Mesh(geo, material);
   if (pos) m.position.set(...pos);
@@ -126,6 +123,21 @@ function isOpenGround(x, z, pad = 0) {
   return true;
 }
 
+// The rocky underside of a floating island: a soft, unlit, painted gradient
+// (earthy near the top, deep and cool toward the tip).
+export function undersideMat(coneGeo, halfHeight) {
+  const p = coneGeo.attributes.position;
+  const col = new Float32Array(p.count * 3);
+  const a = new THREE.Color('#8a6a4c'), b = new THREE.Color('#4b3d4a'), c = new THREE.Color();
+  for (let i = 0; i < p.count; i++) {
+    const k = (p.getY(i) + halfHeight) / (halfHeight * 2); // 0 up by the grass, 1 at the tip
+    c.copy(a).lerp(b, Math.min(1, Math.max(0, k * 1.1)));
+    col.set([c.r, c.g, c.b], i * 3);
+  }
+  coneGeo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
+}
+
 // Where a dragon can stand in the Haven (world coordinates).
 export function havenWalkable(x, z) {
   if (Math.hypot(x, z) > ISLAND_R - 1.2) return false;
@@ -149,6 +161,9 @@ export function buildHaven(world, { say }) {
 
   let pm = null; // drifting light motes (brighter at night)
   let nightLevel = 0;
+  const cloudMats = [];
+  const cloudTint = new THREE.Color('#ffffff');
+  updaters.push((t) => { ENV.uTime.value = t; });
 
   // ---- Sky, fog, light ----
   const skyColors = { top: new THREE.Color('#86add6'), mid: new THREE.Color('#f2d9ae'), low: new THREE.Color('#d8b98c') };
@@ -172,7 +187,7 @@ export function buildHaven(world, { say }) {
         float hash(vec3 p){ return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453); }
         void main(){
           float h = vP.y;
-          vec3 c = h > 0.0 ? mix(mid, top, smoothstep(0.02, 0.6, h)) : mix(mid, low, smoothstep(0.0, -0.25, h));
+          vec3 c = h > 0.0 ? mix(mid, top, smoothstep(0.0, 0.5, h)) : mix(mid, low, smoothstep(0.0, -0.4, h));
           float g = max(dot(vP, glowDir), 0.0);
           c += glowColor * (pow(g, 10.0) * 0.35 + pow(g, 60.0) * 0.25);
           // stars at night
@@ -200,16 +215,19 @@ export function buildHaven(world, { say }) {
   scene.add(sun.target);
   const sunOffset = sun.position.clone();
   // Time of day: keyframes by hour, blended smoothly. Night stays cozy and readable.
+  // `sun` is the warm key light; `sky`/`ground` are the cool fill that colours
+  // the shadows; `cloud` tints the painted clouds.
+  const NIGHT = { top: '#101a3e', mid: '#2f3f7a', low: '#1d2550', fog: '#2f3a6e', glow: '#8090d0', sun: '#b9c9ff', sunI: 1.5, sky: '#8fa0e6', ground: '#3a4a52', hemiI: 1.25, exp: 1.0, night: 1, cloud: '#56649c' };
   const TIMES = [
-    { h: 0, top: '#121833', mid: '#343a6a', low: '#262844', fog: '#373c68', glow: '#8090d0', sun: '#b8c8ff', sunI: 0.9, sky: '#8a96d0', ground: '#3c4a44', hemiI: 0.8, exp: 1.3, night: 1 },
-    { h: 4.5, top: '#1a2146', mid: '#4a4a7a', low: '#34304c', fog: '#474870', glow: '#a090c0', sun: '#c0c8ff', sunI: 0.9, sky: '#9aa0d8', ground: '#3e4a44', hemiI: 0.85, exp: 1.3, night: 0.9 },
-    { h: 6, top: '#7f93c8', mid: '#f3c7a8', low: '#c9a58a', fog: '#e4c4ae', glow: '#ffb890', sun: '#ffc9a0', sunI: 1.6, sky: '#eadcf6', ground: '#56704a', hemiI: 1.15, exp: 1.2, night: 0.2 },
-    { h: 9, top: '#8fb8e0', mid: '#f4e2c0', low: '#d9c29a', fog: '#eedcbc', glow: '#ffe2b0', sun: '#ffe2b8', sunI: 2.5, sky: '#fff4e0', ground: '#6b8a4f', hemiI: 1.5, exp: 1.28, night: 0 },
-    { h: 13, top: '#7fb0e0', mid: '#f2e8cc', low: '#d8c49a', fog: '#ecdfbe', glow: '#fff0d0', sun: '#fff0d4', sunI: 2.8, sky: '#fff8ea', ground: '#6b8a4f', hemiI: 1.6, exp: 1.3, night: 0 },
-    { h: 17.5, top: '#86add6', mid: '#f2d9ae', low: '#d8b98c', fog: '#ecd4a8', glow: '#ffcc80', sun: '#ffd49a', sunI: 2.7, sky: '#fff1d6', ground: '#6b8a4f', hemiI: 1.6, exp: 1.3, night: 0 },
-    { h: 19.5, top: '#4d5a9a', mid: '#eaa98c', low: '#a88070', fog: '#caa092', glow: '#ff9e70', sun: '#ff9e70', sunI: 1.5, sky: '#e0cdf0', ground: '#56684a', hemiI: 1.1, exp: 1.25, night: 0.35 },
-    { h: 21.5, top: '#121833', mid: '#343a6a', low: '#262844', fog: '#373c68', glow: '#8090d0', sun: '#b8c8ff', sunI: 0.9, sky: '#8a96d0', ground: '#3c4a44', hemiI: 0.8, exp: 1.3, night: 1 },
-    { h: 24, top: '#121833', mid: '#343a6a', low: '#262844', fog: '#373c68', glow: '#8090d0', sun: '#b8c8ff', sunI: 0.9, sky: '#8a96d0', ground: '#3c4a44', hemiI: 0.8, exp: 1.3, night: 1 },
+    { h: 0, ...NIGHT },
+    { h: 4.5, ...NIGHT, night: 0.9 },
+    { h: 6, top: '#6f8fd0', mid: '#f9d2b8', low: '#b9b6dc', fog: '#e6cdc4', glow: '#ffb890', sun: '#ffd2b0', sunI: 2.3, sky: '#d9d2f4', ground: '#5c7a4e', hemiI: 1.25, exp: 1.0, night: 0.2, cloud: '#ffd9c8' },
+    { h: 9, top: '#4f9ae6', mid: '#d6eefa', low: '#9fcdf0', fog: '#cfe6f2', glow: '#fff0c8', sun: '#fff0cc', sunI: 3.0, sky: '#cfe4ff', ground: '#7fa85a', hemiI: 1.35, exp: 1.0, night: 0, cloud: '#ffffff' },
+    { h: 13, top: '#3f8fe6', mid: '#cdeafa', low: '#94c8f0', fog: '#c8e4f2', glow: '#fff6dc', sun: '#fff6e0', sunI: 3.2, sky: '#cfe6ff', ground: '#7fa85a', hemiI: 1.4, exp: 1.0, night: 0, cloud: '#ffffff' },
+    { h: 17.5, top: '#4f97e2', mid: '#fbe8c4', low: '#a9cbea', fog: '#e6dfcc', glow: '#ffd08a', sun: '#ffe2b0', sunI: 3.1, sky: '#cfdcff', ground: '#86a85a', hemiI: 1.3, exp: 1.0, night: 0, cloud: '#fff0d4' },
+    { h: 19.5, top: '#44529c', mid: '#f3ad92', low: '#7a78b4', fog: '#c9a09a', glow: '#ff9668', sun: '#ff9a6a', sunI: 2.2, sky: '#cdbcf0', ground: '#5a6c50', hemiI: 1.15, exp: 1.0, night: 0.35, cloud: '#f6b0a0' },
+    { h: 21.5, ...NIGHT },
+    { h: 24, ...NIGHT },
   ];
   const cA = new THREE.Color(), cB = new THREE.Color();
   const mixC = (a, b, t, out) => out.copy(cA.set(a)).lerp(cB.set(b), t);
@@ -236,6 +254,11 @@ export function buildHaven(world, { say }) {
     windowMat.emissiveIntensity = 2.2 + nightLevel * 1.6;
     lanternMat.emissiveIntensity = 2.4 + nightLevel * 2;
     lamp.intensity = 6 + nightLevel * 10;
+    // light for the grass and water shaders, and a tint for the clouds
+    ENV.uSun.value.copy(sun.color).multiplyScalar(sun.intensity / 3.2);
+    ENV.uAmb.value.copy(hemi.color).multiplyScalar(hemi.intensity / 1.3);
+    mixC(a.cloud, b.cloud, t, cloudTint);
+    for (const m of cloudMats) m.color.copy(cloudTint);
     return nightLevel;
   }
 
@@ -250,16 +273,24 @@ export function buildHaven(world, { say }) {
   // ---- Island ----
   const [gc, g] = canvas(1024, 1024);
   const toC = (x, z) => [((x / ISLAND_R) + 1) * 512, ((z / ISLAND_R) + 1) * 512];
-  g.fillStyle = '#86b35c';
+  // Painted meadow: a rich green base, big soft patches of light and shade,
+  // then lots of small brushy dabs so it never looks flat.
+  g.fillStyle = '#7dbe52';
   g.fillRect(0, 0, 1024, 1024);
-  const blotch = ['#7aa853', '#93bd63', '#9cc46a', '#6f9c4c', '#a7c86f', '#88b55a'];
-  for (let i = 0; i < 260; i++) {
-    const x = R(0, 1024), y = R(0, 1024), r = R(20, 90);
+  const blotch = ['#6fb048', '#8fcd5c', '#9fd866', '#62a242', '#b3e070', '#84c456', '#c4e67e'];
+  for (let i = 0; i < 300; i++) {
+    const x = R(0, 1024), y = R(0, 1024), r = R(24, 100);
     const grad = g.createRadialGradient(x, y, 0, x, y, r);
-    grad.addColorStop(0, pick(blotch) + '99');
+    grad.addColorStop(0, pick(blotch) + 'aa');
     grad.addColorStop(1, pick(blotch) + '00');
     g.fillStyle = grad;
     g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  for (let i = 0; i < 2600; i++) {
+    g.fillStyle = pick(blotch) + '66';
+    g.beginPath();
+    g.ellipse(R(0, 1024), R(0, 1024), R(2, 7), R(5, 14), R(0, Math.PI), 0, TAU);
+    g.fill();
   }
   const strokeCurve = (pts, w, color, blur) => {
     g.save();
@@ -273,23 +304,24 @@ export function buildHaven(world, { say }) {
     g.stroke();
     g.restore();
   };
-  strokeCurve(samples(pathCurve, 60), 46, '#c9b286cc', 8);
-  strokeCurve(samples(cottagePath, 24), 40, '#c9b286cc', 8);
-  strokeCurve(streamPts, 64, '#cdbb8a', 6);
+  strokeCurve(samples(pathCurve, 60), 46, '#e2cc98dd', 8);
+  strokeCurve(samples(cottagePath, 24), 40, '#e2cc98dd', 8);
+  strokeCurve(streamPts, 64, '#e0cf9c', 6);
   const disc = (x, z, r, color, blur = 6) => {
     const [cx, cy] = toC(x, z);
     g.save(); g.filter = `blur(${blur}px)`; g.fillStyle = color;
     g.beginPath(); g.arc(cx, cy, (r / ISLAND_R) * 512, 0, TAU); g.fill(); g.restore();
   };
-  disc(...L.pond, L.pondR + 0.55, '#d3c08e');
-  disc(...L.door, 3.4, '#b9ab8a', 10);
-  disc(...L.cottage, 2.6, '#6d9a4a', 14);
-  const grassMat = new THREE.MeshStandardMaterial({ map: tex(gc), roughness: 1 });
+  disc(...L.pond, L.pondR + 0.55, '#e6d49e');
+  disc(...L.door, 3.4, '#cdbf9c', 10);
+  disc(...L.cottage, 2.6, '#62a242', 14);
+  const grassMat = new THREE.MeshToonMaterial({ map: tex(gc), gradientMap: ramp });
   const top = mesh(new THREE.CircleGeometry(ISLAND_R, 96), grassMat, { rot: [-Math.PI / 2, 0, 0], cast: false });
   group.add(top);
-  const rim = mesh(new THREE.CylinderGeometry(ISLAND_R, ISLAND_R - 0.5, 1.1, 96, 1, true), mat('#6f7f45'), { pos: [0, -0.55, 0], cast: false });
+  const rim = mesh(new THREE.CylinderGeometry(ISLAND_R, ISLAND_R - 0.5, 1.1, 96, 1, true), mat('#5f9a40'), { pos: [0, -0.55, 0], cast: false });
   group.add(rim);
-  const under = new THREE.ConeGeometry(ISLAND_R - 0.5, 10, 40, 5, true);
+  // (a cylinder with a pin-point top: ConeGeometry drops faces when it has height segments)
+  const under = new THREE.CylinderGeometry(0.02, ISLAND_R - 0.5, 10, 48, 8, true);
   {
     const p = under.attributes.position;
     const v = new V();
@@ -302,12 +334,12 @@ export function buildHaven(world, { say }) {
     }
     under.computeVertexNormals();
   }
-  group.add(mesh(under, mat('#8a6c4c', { flatShading: true, side: THREE.DoubleSide }), { pos: [0, -6.1, 0], rot: [Math.PI, 0, 0], cast: false }));
+  group.add(mesh(under, undersideMat(under, 5), { pos: [0, -6.1, 0], rot: [Math.PI, 0, 0], cast: false }));
 
   // ---- Distant world ----
   const far = new THREE.Group();
-  const mountainMat = mat('#8795b6', { flatShading: true });
-  const snowMat = mat('#f5efe6', { flatShading: true });
+  const mountainMat = mat('#8ea2d6', { flatShading: true });
+  const snowMat = mat('#fbf6ee', { flatShading: true });
   for (let i = 0; i < 24; i++) {
     const a = (i / 24) * TAU + R(-0.08, 0.08);
     const d = R(110, 170);
@@ -318,7 +350,7 @@ export function buildHaven(world, { say }) {
     far.add(mesh(new THREE.ConeGeometry(r, h, 7), mountainMat, { pos: [x, h / 2 - 18, z], rot: [0, R(0, TAU), 0], cast: false }));
     far.add(mesh(new THREE.ConeGeometry(r * 0.3, h * 0.3, 7), snowMat, { pos: [x, h - 18 - h * 0.15 + 0.2, z], cast: false }));
   }
-  const hillMat = [mat('#6f9a68'), mat('#7fa671'), mat('#6a8f70')];
+  const hillMat = [mat('#6cae62'), mat('#7fbe6c'), mat('#62a070')];
   for (let i = 0; i < 18; i++) {
     const a = (i / 18) * TAU + R(-0.1, 0.1);
     const d = R(58, 80);
@@ -328,23 +360,21 @@ export function buildHaven(world, { say }) {
   }
   scene.add(far);
 
+  // Big painted cumulus clouds drifting slowly around the horizon.
   const clouds = new THREE.Group();
-  const cloudMat = new THREE.MeshStandardMaterial({ color: '#fff7ea', roughness: 1, emissive: '#fff1dc', emissiveIntensity: 0.35 });
-  for (let i = 0; i < 10; i++) {
-    const c = new THREE.Group();
-    const n = 4 + Math.floor(R(0, 4));
-    for (let k = 0; k < n; k++) {
-      const s = R(3, 6);
-      const puff = mesh(blobGeo(s, 0.06, 14, 10), cloudMat, { pos: [k * 4 - n * 2 + R(-1, 1), R(-0.5, 1.5), R(-2, 2)], scale: [1.3, 0.75, 1], cast: false });
-      c.add(puff);
-    }
-    const a = R(0, TAU), d = R(80, 120);
-    c.position.set(Math.cos(a) * d, R(22, 42), Math.sin(a) * d);
-    c.lookAt(0, c.position.y, 0);
+  for (let i = 0; i < 16; i++) {
+    const m = new THREE.MeshBasicMaterial({ map: paintCloud(i + 1), transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide });
+    cloudMats.push(m);
+    const w = R(70, 130);
+    const c = new THREE.Mesh(new THREE.PlaneGeometry(w, w * 0.5), m);
+    const a = (i / 16) * TAU + R(-0.15, 0.15), d = R(210, 290);
+    c.position.set(Math.cos(a) * d, [R(95, 150), R(20, 70), R(-110, -40)][i % 3], Math.sin(a) * d);
+    c.lookAt(0, c.position.y * 0.6, 0);
+    c.renderOrder = -1;
     clouds.add(c);
   }
   scene.add(clouds);
-  updaters.push((t, dt) => { clouds.rotation.y += dt * 0.004; });
+  updaters.push((t, dt) => { clouds.rotation.y += dt * 0.003; });
 
   // ---- Water ----
   const [wc, wg] = canvas(64, 256);
@@ -356,13 +386,12 @@ export function buildHaven(world, { say }) {
   }
   const flowTex = tex(wc);
   flowTex.wrapS = flowTex.wrapT = THREE.RepeatWrapping;
-  const waterMat = new THREE.MeshStandardMaterial({ map: flowTex, roughness: 0.12, metalness: 0.05, side: THREE.DoubleSide });
+  // Stylised water: sparkles, foam at the edges, streaks on the falls.
+  const waterMat = makeWater(1);
   const fallTex = flowTex.clone();
-  fallTex.repeat.set(1, 1.6);
-  const fallMat = new THREE.MeshStandardMaterial({ map: fallTex, roughness: 0.2, emissive: '#bfe8ef', emissiveIntensity: 0.25, side: THREE.DoubleSide });
+  const fallMat = makeWater(2);
   const pondTex = flowTex.clone();
-  pondTex.repeat.set(3, 0.6);
-  const pondMat = new THREE.MeshStandardMaterial({ map: pondTex, roughness: 0.1, metalness: 0.08, color: '#dff4f6' });
+  const pondMat = makeWater(0);
   updaters.push((t, dt) => {
     flowTex.offset.y -= dt * 0.35;
     fallTex.offset.y += dt * 0.9;
@@ -395,12 +424,12 @@ export function buildHaven(world, { say }) {
   // Pond
   const pond = mesh(new THREE.CircleGeometry(L.pondR, 48), pondMat, { pos: [L.pond[0], 0.04, L.pond[1]], rot: [-Math.PI / 2, 0, 0], cast: false });
   group.add(pond);
-  const stoneMats = [mat('#a8a291', { flatShading: true }), mat('#948f80', { flatShading: true }), mat('#bdb5a0', { flatShading: true })];
+  const stoneMats = [mat('#b9b2a2'), mat('#a39d8f'), mat('#cfc7b2')];
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * TAU + R(-0.1, 0.1);
     if (Math.abs(a - 4.5) < 0.35) continue; // leave a gap where the stream enters
     const r = L.pondR + R(0.05, 0.3);
-    group.add(mesh(new THREE.DodecahedronGeometry(R(0.18, 0.34), 0), pick(stoneMats), {
+    group.add(mesh(blobGeo(R(0.2, 0.36), 0.12, 10, 8), pick(stoneMats), {
       pos: [L.pond[0] + Math.cos(a) * r, 0.08, L.pond[1] + Math.sin(a) * r], rot: [R(0, 3), R(0, 3), 0], scale: [1, 0.6, 1],
     }));
   }
@@ -455,11 +484,11 @@ export function buildHaven(world, { say }) {
 
   // Cliff + waterfall
   const cliff = new THREE.Group();
-  const cliffMats = [mat('#9a947f', { flatShading: true }), mat('#857f6f', { flatShading: true }), mat('#aaa28b', { flatShading: true })];
+  const cliffMats = [mat('#a9a08c'), mat('#958d7c'), mat('#bcb39c')];
   const rocks = [[0, 1.2, 0, 2.4], [1.4, 0.9, -1.2, 2.0], [-1.3, 0.8, -1.0, 1.8], [0.4, 2.9, -0.9, 1.9], [-0.9, 2.4, 0.2, 1.4], [1.5, 2.3, 0.3, 1.3], [0.2, 4.1, -1.2, 1.4]];
-  for (const [x, y, z, s] of rocks) cliff.add(mesh(new THREE.DodecahedronGeometry(s, 1), pick(cliffMats), { pos: [x, y, z], rot: [R(0, 3), R(0, 3), R(0, 3)] }));
+  for (const [x, y, z, s] of rocks) cliff.add(mesh(blobGeo(s, 0.14, 16, 12), pick(cliffMats), { pos: [x, y, z], rot: [R(0, 3), R(0, 3), R(0, 3)], scale: [1, 0.92, 1] }));
   for (const [x, y, z, s] of [[0.3, 5.0, -1.0, 1.0], [-0.9, 3.5, 0.2, 0.8], [1.4, 3.3, 0.2, 0.7]]) {
-    cliff.add(mesh(blobGeo(s, 0.1), mat('#6f9c4c'), { pos: [x, y, z], scale: [1.2, 0.5, 1.2] }));
+    cliff.add(mesh(foliageGeo(s, 0.1), leafMat('#6fb44c'), { pos: [x, y, z], scale: [1.2, 0.5, 1.2] }));
   }
   cliff.position.set(...[L.cliff[0], 0, L.cliff[1]]);
   group.add(cliff);
@@ -497,21 +526,38 @@ export function buildHaven(world, { say }) {
   placeStones(cottagePath, 7);
 
   // ---- Trees, bushes ----
-  const leafMats = ['#5e8f3e', '#6fa04a', '#4f7f38', '#86b556', '#79a852'].map((c) => mat(c, { roughness: 0.95 }));
-  const trunkMat = mat('#7b5a3e');
+  // Fluffy storybook trees: a dome of leafy puffs, lighter where the sun
+  // catches them. A few are in blossom.
+  const LEAF = ['#4f9a3d', '#63ad45', '#3f8a3c', '#7cc04f', '#58a34a'];
+  const BLOSSOM = ['#f4b6cf', '#f8cfe0'];
+  const trunkMat = mat('#7d5a3c');
   const sway = [];
-  function tree(x, z, s = 1) {
+  function tree(x, z, s = 1, palette = LEAF) {
     const g = new THREE.Group();
     g.position.set(x, 0, z);
     const h = R(1.8, 2.6) * s;
-    g.add(mesh(new THREE.CylinderGeometry(0.16 * s, 0.3 * s, h, 7), trunkMat, { pos: [0, h / 2, 0] }));
+    const trunk = mesh(new THREE.CylinderGeometry(0.15 * s, 0.32 * s, h, 8), trunkMat, { pos: [0, h / 2, 0] });
+    trunk.rotation.z = R(-0.06, 0.06);
+    g.add(trunk);
     const crown = new THREE.Group();
     crown.position.y = h;
-    const m = pick(leafMats);
-    const n = 3 + Math.floor(R(0, 3));
+    const base = pick(palette);
+    // big body puffs…
+    const n = 5 + Math.floor(R(0, 3));
     for (let i = 0; i < n; i++) {
-      const r = R(0.95, 1.4) * s;
-      crown.add(mesh(blobGeo(r, 0.07), i === 0 ? m : pick(leafMats), { pos: [R(-0.8, 0.8) * s, R(0.2, 1.3) * s, R(-0.8, 0.8) * s] }));
+      const a = (i / n) * TAU + R(-0.4, 0.4);
+      const ring = i === 0 ? 0 : R(0.55, 1.0);
+      const r = (i === 0 ? R(1.25, 1.5) : R(0.8, 1.15)) * s;
+      crown.add(mesh(foliageGeo(r, 0.1), leafMat(rand() < 0.7 ? base : pick(palette)), {
+        pos: [Math.cos(a) * ring * s, (i === 0 ? 0.9 : R(0.2, 1.0)) * s, Math.sin(a) * ring * s],
+      }));
+    }
+    // …and a few small bright ones on the sunny side
+    const light = new THREE.Color(base).lerp(new THREE.Color(palette === LEAF ? '#b9e06a' : '#fff0f6'), 0.3).getStyle();
+    for (let i = 0; i < 3; i++) {
+      crown.add(mesh(foliageGeo(R(0.6, 0.85) * s, 0.12, 12, 9), leafMat(light), {
+        pos: [R(-0.9, 0.1) * s, R(1.1, 1.7) * s, R(-0.1, 0.8) * s],
+      }));
     }
     g.add(crown);
     sway.push({ o: crown, ph: R(0, TAU), a: R(0.012, 0.026) });
@@ -522,8 +568,11 @@ export function buildHaven(world, { say }) {
     const g = new THREE.Group();
     g.position.set(x, 0, z);
     g.add(mesh(new THREE.CylinderGeometry(0.12 * s, 0.2 * s, 1.2 * s, 6), trunkMat, { pos: [0, 0.6 * s, 0] }));
-    const pm = mat('#4a7a45', { roughness: 0.95 });
-    for (let i = 0; i < 3; i++) g.add(mesh(new THREE.ConeGeometry((1.4 - i * 0.35) * s, 1.8 * s, 9), pm, { pos: [0, (1.5 + i * 1.0) * s, 0] }));
+    const tiers = ['#2f7a46', '#388650', '#44945a', '#54a465'];
+    for (let i = 0; i < 4; i++) {
+      const cone = new THREE.ConeGeometry((1.45 - i * 0.3) * s, 1.7 * s, 10);
+      g.add(mesh(cone, mat(tiers[i]), { pos: [0, (1.4 + i * 0.85) * s, 0] }));
+    }
     group.add(g);
   }
   for (let i = 0; i < 26; i++) {
@@ -536,23 +585,23 @@ export function buildHaven(world, { say }) {
     rand() < 0.3 ? pine(x, z, R(0.9, 1.2)) : tree(x, z, R(0.9, 1.25));
   }
   tree(-9.3, -6.6, 1.2);
-  tree(-10.2, 2.8, 1.0);
-  tree(9.6, 3.6, 0.95);
+  tree(-10.2, 2.8, 1.0, BLOSSOM);
+  tree(9.6, 3.6, 0.95, BLOSSOM);
   tree(-3.2, -10.6, 1.1);
   tree(3.8, -10.4, 1.15);
   updaters.push((t) => { for (const s of sway) { s.o.rotation.z = Math.sin(t * 0.8 + s.ph) * s.a; s.o.rotation.x = Math.cos(t * 0.6 + s.ph) * s.a * 0.7; } });
 
-  const bushMats = [mat('#5f8f42'), mat('#6d9d4a'), mat('#57843e')];
-  const blossomMats = [mat('#f6d3e0'), mat('#fff6ea'), mat('#f4d58a')];
+  const bushMats = [leafMat('#58a244'), leafMat('#6bb44c'), leafMat('#4a9440')];
+  const blossomMats = [mat('#f9c6da'), mat('#fff6ea'), mat('#f7d774')];
   function bush(x, z, s = 1, blossoms = false) {
     const g = new THREE.Group();
     g.position.set(x, 0, z);
-    for (let i = 0; i < 3; i++) g.add(mesh(blobGeo(R(0.45, 0.7) * s, 0.08, 14, 10), pick(bushMats), { pos: [R(-0.4, 0.4) * s, 0.35 * s, R(-0.3, 0.3) * s], scale: [1, 0.8, 1] }));
+    for (let i = 0; i < 4; i++) g.add(mesh(foliageGeo(R(0.42, 0.7) * s, 0.1, 14, 10), pick(bushMats), { pos: [R(-0.45, 0.45) * s, R(0.3, 0.5) * s, R(-0.35, 0.35) * s], scale: [1, 0.82, 1] }));
     if (blossoms) {
       const bm = pick(blossomMats);
-      for (let i = 0; i < 9; i++) {
-        const a = R(0, TAU), e = R(0.2, 1.2);
-        g.add(mesh(new THREE.SphereGeometry(0.07 * s, 8, 6), bm, { pos: [Math.cos(a) * Math.cos(e) * 0.6 * s, 0.35 * s + Math.sin(e) * 0.5 * s, Math.sin(a) * Math.cos(e) * 0.6 * s], cast: false }));
+      for (let i = 0; i < 14; i++) {
+        const a = R(0, TAU), e = R(0.2, 1.3);
+        g.add(mesh(new THREE.SphereGeometry(0.085 * s, 8, 6), bm, { pos: [Math.cos(a) * Math.cos(e) * 0.68 * s, 0.38 * s + Math.sin(e) * 0.55 * s, Math.sin(a) * Math.cos(e) * 0.68 * s], cast: false }));
       }
     }
     group.add(g);
@@ -560,60 +609,61 @@ export function buildHaven(world, { say }) {
   [[-8.2, -1.2, 1.1, true], [-7.4, -4.9, 1, false], [-3.8, -4.8, 0.9, true], [2.6, -6.8, 1, true], [-2.2, -7.9, 0.8, false], [8.7, -2.2, 1, true], [3.2, 3.9, 0.7, false], [-6.9, 4.2, 1, true], [7.6, 5.6, 0.9, true], [-4.8, 7.4, 0.8, false]]
     .forEach(([x, z, s, b]) => bush(x, z, s, b));
 
-  // ---- Grass tufts + wildflowers (instanced) ----
+  // ---- Grass blades + wildflowers (instanced) ----
   {
-    const geo = new THREE.ConeGeometry(0.06, 0.38, 5);
-    geo.translate(0, 0.19, 0);
-    const N = 1100;
-    const im = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ roughness: 1 }), N);
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), col = new THREE.Color();
-    const shades = ['#6c9a45', '#7fae51', '#8dbb5c', '#5d8a3d', '#9ac466'];
-    let n = 0;
-    for (let tries = 0; n < N && tries < N * 6; tries++) {
+    // Grass grows almost everywhere: thick in the meadow, thinner on the paths.
+    const grassOK = (x, z) => {
+      if (Math.hypot(x, z) > ISLAND_R - 0.35) return false;
+      const near = (p, r) => Math.hypot(x - p[0], z - p[1]) < r;
+      if (near(L.pond, L.pondR + 0.15) || near(L.cottage, 1.75) || near(L.nest, 0.75) || near(L.cliff, 2.7) || near(L.chest, 0.6)) return false;
+      if (Math.abs(x - L.door[0]) < 3.3 && z < L.door[1] + 1.7) return false;
+      if (minDist(streamPts, x, z) < 0.65) return false;
+      const dPath = minDist(pathPts, x, z);
+      if (dPath < 0.45) return false;
+      if (dPath < 0.9 && rand() < 0.6) return false;
+      return true;
+    };
+    const spots = [];
+    for (let tries = 0; spots.length < 3200 && tries < 30000; tries++) {
       const x = R(-ISLAND_R, ISLAND_R), z = R(-ISLAND_R, ISLAND_R);
-      if (!isOpenGround(x, z)) continue;
-      e.set(R(-0.25, 0.25), R(0, TAU), R(-0.25, 0.25));
-      const s = R(0.6, 1.4);
-      m4.compose(new V(x, 0, z), q.setFromEuler(e), new V(s, s * R(0.8, 1.4), s));
-      im.setMatrixAt(n, m4);
-      im.setColorAt(n, col.set(pick(shades)));
-      n++;
+      if (grassOK(x, z)) spots.push([x, z]);
     }
-    im.count = n;
-    im.receiveShadow = true;
-    group.add(im);
+    group.add(makeGrass(spots, { perTuft: 4, height: 0.4 }));
   }
   {
-    const headGeo = new THREE.SphereGeometry(0.085, 8, 6);
-    headGeo.scale(1, 0.6, 1);
-    const stemGeo = new THREE.CylinderGeometry(0.012, 0.012, 1, 4);
+    // Wildflower patches: little five-petal flowers in soft storybook colours.
+    const stemGeo = new THREE.CylinderGeometry(0.012, 0.014, 1, 4);
     stemGeo.translate(0, 0.5, 0);
-    const N = 520;
-    const heads = new THREE.InstancedMesh(headGeo, new THREE.MeshStandardMaterial({ roughness: 0.7 }), N);
-    const stems = new THREE.InstancedMesh(stemGeo, mat('#5e8c3c'), N);
-    const palette = ['#f6c7d6', '#f6c7d6', '#f3d46c', '#f3d46c', '#cdb6ec', '#ffffff', '#ffffff', '#f19a78', '#9ec5f0'];
-    const m4 = new THREE.Matrix4(), col = new THREE.Color(), q = new THREE.Quaternion();
+    const N = 900;
+    const heads = new THREE.InstancedMesh(flowerGeo(), toon('#ffffff'), N);
+    const centres = new THREE.InstancedMesh(flowerCentreGeo(), toon('#f6c945'), N);
+    const stems = new THREE.InstancedMesh(stemGeo, mat('#4f9a3d'), N);
+    const palette = ['#f9b8d0', '#f9b8d0', '#f7d35c', '#f7d35c', '#c9b0f0', '#ffffff', '#ffffff', '#f79a70', '#8fc4f4', '#f47a8a'];
+    const m4 = new THREE.Matrix4(), col = new THREE.Color(), q = new THREE.Quaternion(), e = new THREE.Euler();
     let n = 0;
-    for (let c = 0; c < 34 && n < N; c++) {
+    for (let c = 0; c < 52 && n < N; c++) {
       let cx, cz, tries = 0;
-      do { cx = R(-12, 12); cz = R(-12, 12); tries++; } while (!isOpenGround(cx, cz, 0.3) && tries < 30);
+      do { cx = R(-12.5, 12.5); cz = R(-12.5, 12.5); tries++; } while (!isOpenGround(cx, cz, 0.2) && tries < 30);
       const hue = pick(palette), hue2 = pick(palette);
-      const count = Math.floor(R(8, 22));
+      const count = Math.floor(R(10, 26));
       for (let k = 0; k < count && n < N; k++) {
-        const x = cx + R(-1.4, 1.4), z = cz + R(-1.4, 1.4);
+        const x = cx + R(-1.5, 1.5), z = cz + R(-1.5, 1.5);
         if (!isOpenGround(x, z)) continue;
-        const h = R(0.18, 0.4);
-        m4.compose(new V(x, h, z), q, new V(1, 1, 1));
+        const h = R(0.26, 0.48);
+        const sc = R(0.7, 1.15);
+        q.setFromEuler(e.set(R(-0.25, 0.25), R(0, TAU), R(-0.25, 0.25)));
+        m4.compose(new V(x, h, z), q, new V(sc, sc, sc));
         heads.setMatrixAt(n, m4);
+        centres.setMatrixAt(n, m4);
         heads.setColorAt(n, col.set(rand() < 0.75 ? hue : hue2));
-        m4.compose(new V(x, 0, z), q, new V(1, h, 1));
+        m4.compose(new V(x, 0, z), q.identity(), new V(1, h, 1));
         stems.setMatrixAt(n, m4);
         n++;
       }
     }
-    heads.count = stems.count = n;
+    heads.count = centres.count = stems.count = n;
     heads.castShadow = true;
-    group.add(heads, stems);
+    group.add(heads, centres, stems);
   }
   // Sunflowers by the cottage
   for (const [x, z, h] of [[-8.1, 0.3, 1.5], [-7.4, 1.0, 1.25], [-2.6, -3.9, 1.35]]) {
