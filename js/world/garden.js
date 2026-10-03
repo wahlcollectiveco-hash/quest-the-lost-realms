@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { toon } from './style.js';
 import { easeOut } from './scene.js';
+import { state } from '../state.js';
 
 const V = THREE.Vector3;
 const TAU = Math.PI * 2;
@@ -283,7 +284,7 @@ export function createGarden(world, haven) {
   const sparkTex = glowTexture();
 
   // A soft burst of light motes.
-  function sparkle(pos, count = 36) {
+  function sparkle(pos, count = 36, color = null) {
     const N = count;
     const positions = new Float32Array(N * 3);
     const vel = [];
@@ -295,7 +296,7 @@ export function createGarden(world, haven) {
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    const m = new THREE.PointsMaterial({ size: 0.28, map: sparkTex, color: new THREE.Color(1, 0.9, 0.6).multiplyScalar(2), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+    const m = new THREE.PointsMaterial({ size: 0.28, map: sparkTex, color: (color ? new THREE.Color(color) : new THREE.Color(1, 0.9, 0.6)).multiplyScalar(2), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
     const pts = new THREE.Points(geo, m);
     scene.add(pts);
     let last = 0;
@@ -313,15 +314,19 @@ export function createGarden(world, haven) {
     }, (p) => p).then(() => { scene.remove(pts); geo.dispose(); m.dispose(); });
   }
 
+  // Where an item is: wherever you put it, or its usual spot.
+  const spotOf = (id) => state.placed?.[id] || SLOTS[id];
   function positionOf(id) {
-    const s = SLOTS[id];
+    const o = placed.get(id);
+    if (o) return o.position.clone();
+    const s = spotOf(id);
     return s ? new V(s[0], s[1], s[2]) : null;
   }
 
   function place(id, animate = false) {
     if (placed.has(id) || !BUILDERS[id]) return;
     const obj = BUILDERS[id]();
-    const [x, y, z, ry] = SLOTS[id];
+    const [x, y, z, ry] = spotOf(id);
     obj.position.set(x, y, z);
     obj.rotation.y = ry;
     obj.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
@@ -344,13 +349,13 @@ export function createGarden(world, haven) {
   }
 
   // A treasure pops up out of the pile by the chest, glints, and settles.
-  function popTreasure(color = '#f2b441') {
+  function popTreasure(color = '#f2b441', at = null) {
     const gem = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.2, 0),
       new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.9, roughness: 0.2, metalness: 0.3 })
     );
     const light = new THREE.PointLight('#ffd98a', 0, 6, 2);
-    const base = pile.position.clone();
+    const base = at ? at.clone() : pile.position.clone();
     scene.add(gem, light);
     sparkle(base, 40);
     return world.tween(2.6, (p) => {
@@ -395,5 +400,17 @@ export function createGarden(world, haven) {
     if (bath) bath.userData.bird.rotation.y = Math.sin(t * 0.7) > 0.6 ? 0.8 : -0.3;
   });
 
-  return { place, positionOf, sparkle, setTreasures, popTreasure, pilePosition: () => pile.position.clone() };
+  return {
+    place,
+    positionOf,
+    sparkle,
+    setTreasures,
+    popTreasure,
+    pilePosition: () => pile.position.clone(),
+    objectOf: (id) => placed.get(id),
+    usualSpot: (id) => SLOTS[id],
+    canPlace: (id) => !!BUILDERS[id] && id !== 'dewdrop-lily',
+    // Take an item out of the world (to put it somewhere else, or away).
+    remove(id) { const o = placed.get(id); if (o) { scene.remove(o); placed.delete(id); } },
+  };
 }

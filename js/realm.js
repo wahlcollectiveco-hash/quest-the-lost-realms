@@ -11,18 +11,26 @@ export const STONES = [
 
 const MAPS = ['map-1', 'map-2', 'map-3', 'map-4'];
 
+// The symbols wake one at a time, in this order, so there's always one
+// clear next step. (A symbol whose milestone is already done lights as soon
+// as its turn comes.) Quill can tell the story of each one.
 export const RUNES = [
   { name: 'The First Step', hint: 'Finish your first Quest.', lit: (s) => s.stats.completed >= 1 },
-  { name: 'A Friend’s Warmth', hint: 'Hatch an egg.', lit: (s) => s.creatures.length >= 1 },
-  { name: 'The Vale Remembers', hint: 'Visit Verdant Vale.', lit: (s) => s.realm.visited },
+  { name: 'The Vale Remembers', hint: 'Fly to Verdant Vale.', lit: (s) => s.realm.visited },
   { name: 'Stone of Roots', hint: 'Wake the Stone of Roots in Verdant Vale.', lit: (s) => s.realm.stones[0], stone: 0 },
+  { name: 'A Friend’s Warmth', hint: 'Hatch the egg in the nest.', lit: (s) => s.creatures.length >= 1 },
   { name: 'Stone of Water', hint: 'Wake the Stone of Water in Verdant Vale.', lit: (s) => s.realm.stones[1], stone: 1 },
   { name: 'Stone of Sky', hint: 'Wake the Stone of Sky in Verdant Vale.', lit: (s) => s.realm.stones[2], stone: 2 },
+  { name: 'The Keeper’s Promise', hint: 'Find the key to the old chest by the Door, and open it.', lit: (s) => s.chestOpened },
   { name: 'The Old Map', hint: 'Find all four pieces of the old map.', lit: (s) => MAPS.every((id) => s.found[id]) },
-  { name: 'The Keeper’s Promise', hint: 'Open the old chest by the Door.', lit: (s) => s.chestOpened },
 ];
 
-export const litRunes = () => RUNES.map((r) => !!r.lit(state));
+export function litRunes() {
+  let open = true;
+  return RUNES.map((r) => (open = open && !!r.lit(state)));
+}
+// The symbol that wakes next (or -1 when all are lit).
+export const nextRune = () => litRunes().indexOf(false);
 export const allLit = () => litRunes().every(Boolean);
 
 export const valeUnlocked = () => state.stats.completed >= 1;

@@ -11,6 +11,8 @@ import { createHistorian, createFox, createLune } from './world/npcs.js';
 import { talk, letterbox } from './ui/dialogue.js';
 import { DRAGONS } from './data/dragons.js';
 import { HAZEL_BANTER, HAZEL_TRICK, QUILL_BANTER } from './data/moments.js';
+import { RUNE_STORIES, TREASURE_STORIES } from './data/life.js';
+import { byId } from './data/discoveries.js';
 
 const V = THREE.Vector3;
 const MAPS = ['map-1', 'map-2', 'map-3', 'map-4'];
@@ -356,6 +358,7 @@ export function createStory({ world, haven, vale, director, getCompanion, getWhe
       [!valeUnlocked(), 'Verdant Vale is covered in mist right now. Finish one Quest and the way will open.'],
       [!state.realm.visited, 'You can visit Verdant Vale now. Tap the mountain button at the top of the screen and your dragon will fly you there.'],
       [!S.met.quill, 'An old dragon named Quill lives in the ruins in Verdant Vale. Tap Quill to hear stories about the Door.'],
+      [S.met.quill && quillStories().length > 0, 'Quill has a story for you about something new. Fly to Verdant Vale and tap Quill!'],
       [STONES.some((_, i) => stoneState(i) === 'ready'), 'One of the rune stones in Verdant Vale is ready to wake up. Fly there and tap the glowing stone.'],
       [!state.realm.hidden.grotto, 'Something is hidden behind the big waterfall in Verdant Vale. Try tapping the waterfall.'],
       [!state.realm.hidden.hollow, 'There’s something shiny inside the big hollow tree in Verdant Vale. Tap the tree to look inside.'],
@@ -365,8 +368,25 @@ export function createStory({ world, haven, vale, director, getCompanion, getWhe
     return hints.find(([ok]) => ok)?.[1] || null;
   }
 
+  // Quill tells the story of each Door symbol once it glows, and of each
+  // treasure you find, one at a time, before the older lore.
+  function quillStories() {
+    const heard = S.heard.quill || {};
+    const lit = litRunes();
+    const runes = RUNE_STORIES.map((_, i) => i).filter((i) => lit[i] && !heard[`rune-${i}`]).map((i) => ({ key: `rune-${i}`, lines: RUNE_STORIES[i] }));
+    const treasures = Object.keys(TREASURE_STORIES).filter((id) => state.found[id] && !heard[`t-${id}`])
+      .map((id) => ({ key: `t-${id}`, lines: [`Is that a ${byId(id).name}? Let me see…`, ...TREASURE_STORIES[id]] }));
+    return [...runes, ...treasures];
+  }
   function quillLines() {
     if (!S.met.quill) { S.met.quill = true; save(); return QUILL_INTRO; }
+    const stories = quillStories();
+    if (stories.length) {
+      S.heard.quill ||= {};
+      S.heard.quill[stories[0].key] = true;
+      save();
+      return stories.length > 1 ? [...stories[0].lines, 'There’s more I could tell you. Come back and ask me again.'] : stories[0].lines;
+    }
     return nextLore('quill', QUILL_LORE);
   }
 
@@ -523,6 +543,7 @@ export function createStory({ world, haven, vale, director, getCompanion, getWhe
     check,
     play,
     pending,
+    quillHasStory: () => quillStories().length > 0,
     replay: (id) => play(id),
     isPlaying: () => playing,
     setLocation() { if (luneState.visible) hideLune(false); check(); },

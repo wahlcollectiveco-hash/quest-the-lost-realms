@@ -2,7 +2,8 @@
 // a discovery. Deliberately not a points economy: no numbers to grind,
 // just occasional, delightful changes in the world.
 import { state, save, uid } from './state.js';
-import { CATALOG, byId } from './data/discoveries.js';
+import { CATALOG, byId, inHaven } from './data/discoveries.js';
+import { TREATS, VISITORS } from './data/life.js';
 import { PALETTES, NAMES } from './data/creatures.js';
 
 // ---- The egg ----
@@ -50,44 +51,59 @@ export function renameCreature(id, name) {
   save();
 }
 
-// ---- Discoveries ----
-// Every other discovery moves the story along (story fragments, map pieces,
-// the key, in this order). The rest are surprises for the Haven.
+// ---- Rewards ----
+// Every finished Quest brings one thing, and the kind keeps changing:
+//   a treat to feed your dragon, something for the Haven (you choose where
+//   it goes), a visitor who moves in, or a treasure for the pile.
+// Every third reward moves the story along instead (story fragments, map
+// pieces, the key, in this order).
+// Still deliberately not a points economy: nothing to count or spend.
 const PROGRESSION = ['story-1', 'map-1', 'story-2', 'map-2', 'mossy-key', 'map-3', 'story-3', 'map-4', 'story-4', 'story-5', 'story-6'];
-const KIND_WEIGHTS = { treasure: 30, flower: 24, decoration: 20 };
+const WEIGHTS = { treat: 30, haven: 26, visitor: 18, treasure: 16 };
+const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
-function pickItem() {
+function pickGift() {
+  const log = (state.rewardLog ||= { last: null, count: 0 });
+  log.count++;
   const nextStory = PROGRESSION.map(byId).find((it) => !state.found[it.id]);
-  if (state.discovery.total % 2 === 1 && nextStory) return nextStory;
-  const avail = {};
-  for (const it of CATALOG) {
-    if (it.special || state.found[it.id] || !KIND_WEIGHTS[it.kind]) continue;
-    (avail[it.kind] ||= []).push(it);
-  }
-  const kinds = Object.keys(avail);
-  if (!kinds.length) return nextStory || null;
-  let r = Math.random() * kinds.reduce((s, k) => s + KIND_WEIGHTS[k], 0);
-  let kind = kinds[0];
-  for (const k of kinds) if ((r -= KIND_WEIGHTS[k]) <= 0) { kind = k; break; }
-  const list = avail[kind];
-  return list[Math.floor(Math.random() * list.length)];
+  if (nextStory && log.count % 3 === 2) return { type: 'item', item: nextStory };
+  const free = (kinds) => CATALOG.filter((c) => !c.special && kinds.includes(c.kind) && !state.found[c.id]);
+  const havenItems = free(['flower', 'decoration']);
+  const treasures = free(['treasure']);
+  const visitors = VISITORS.filter((v) => !(state.visitors || []).includes(v.id));
+  // The very first reward is a visitor, so the Haven feels alive right away.
+  if (log.count === 1 && visitors.length) return { type: 'visitor', visitor: visitors[0] };
+  const avail = {
+    treat: WEIGHTS.treat,
+    haven: havenItems.length ? WEIGHTS.haven : 0,
+    visitor: visitors.length ? WEIGHTS.visitor : 0,
+    treasure: treasures.length ? WEIGHTS.treasure : 0,
+  };
+  if (avail[log.last]) avail[log.last] *= 0.2; // rarely the same kind twice in a row
+  let r = Math.random() * Object.values(avail).reduce((a, b) => a + b, 0);
+  let kind = 'treat';
+  for (const [k, w] of Object.entries(avail)) if ((r -= w) <= 0) { kind = k; break; }
+  if (kind === 'haven') return { type: 'item', item: pickOne(havenItems) };
+  if (kind === 'treasure') return { type: 'item', item: pickOne(treasures) };
+  if (kind === 'visitor') return { type: 'visitor', visitor: visitors[0] };
+  return { type: 'treat', treat: pickOne(TREATS) };
 }
 
-// Discoveries are occasional: roughly one in three Quests, a little more
-// likely after a dry spell or a long focus session. The very first is guaranteed.
-function rollDiscovery(focusMinutes) {
-  const d = state.discovery;
-  const chance = 0.3 + d.miss * 0.18 + (focusMinutes >= 25 ? 0.15 : 0);
-  if (d.total > 0 && Math.random() > chance) {
-    d.miss++;
-    return null;
+function giveGift(g) {
+  const log = state.rewardLog;
+  if (g.type === 'treat') {
+    state.pantry = state.pantry || {};
+    state.pantry[g.treat.id] = (state.pantry[g.treat.id] || 0) + 1;
+    log.last = 'treat';
+  } else if (g.type === 'visitor') {
+    state.visitors = [...(state.visitors || []), g.visitor.id];
+    log.last = 'visitor';
+  } else {
+    state.found[g.item.id] = Date.now();
+    // Haven things wait for you to choose where they go.
+    if (inHaven(g.item) && g.item.id !== 'dewdrop-lily') state.unplaced = [...(state.unplaced || []), g.item.id];
+    log.last = g.item.kind === 'treasure' ? 'treasure' : inHaven(g.item) ? 'haven' : 'story';
   }
-  const item = pickItem();
-  d.miss = 0;
-  if (!item) return null;
-  d.total++;
-  state.found[item.id] = Date.now();
-  return item;
 }
 
 // Call once when a Quest is completed. Reopening and re-completing a Quest
@@ -103,9 +119,29 @@ export function rewardQuest(q, { focusMinutes = 0 } = {}) {
   // While a hatchling is still settling in there's no egg to warm.
   const hasEgg = state.hatch.phase !== 'raising';
   if (hasEgg && !wasReady) state.hatch.warmth = Math.min(eggNeed(), state.hatch.warmth + gain);
-  const item = rollDiscovery(focusMinutes);
+  const gift = pickGift();
+  giveGift(gift);
   save();
-  return { gain, warmed: hasEgg, nowReady: hasEgg && !wasReady && eggReady(), item };
+  return { gain, warmed: hasEgg, nowReady: hasEgg && !wasReady && eggReady(), gift, item: gift.type === 'item' ? gift.item : null };
+}
+
+// ---- Treats ----
+export const pantryList = () => TREATS.filter((t) => state.pantry?.[t.id] > 0).map((t) => ({ ...t, count: state.pantry[t.id] }));
+export function useTreat(id) {
+  if (id === 'apple' || !state.pantry?.[id]) return;
+  state.pantry[id]--;
+  save();
+}
+
+// ---- Haven things you place yourself ----
+export function placeItem(id, pos) {
+  state.placed = { ...(state.placed || {}), [id]: pos };
+  state.unplaced = (state.unplaced || []).filter((x) => x !== id);
+  save();
+}
+export function storeItem(id) {
+  if (!(state.unplaced || []).includes(id)) state.unplaced = [...(state.unplaced || []), id];
+  save();
 }
 
 export const isFound = (id) => !!state.found[id];

@@ -89,6 +89,9 @@
       </div>
     </header>
 
+    <!-- How your dragon is feeling today (tap to look after them) -->
+    <button class="feel-pill" id="feel-btn"></button>
+
     <!-- 4. Today's Quests -->
     <button class="btn ghost panel-reopen" id="panel-reopen">Today's Quests</button>
     <aside class="quest-panel" id="quest-panel" data-sheet="half" aria-labelledby="quests-title">
@@ -145,6 +148,16 @@
       </div>
     </div>
   </section>
+
+  <!-- Choosing where a new Haven thing goes -->
+  <div class="place-bar" id="place-bar" role="dialog" aria-label="Choose a spot">
+    <p><b id="place-name"></b> Tap the grass to move it. Drag to look around.</p>
+    <div class="place-actions">
+      <button class="btn ghost small" id="place-later">Later</button>
+      <button class="btn ghost small" id="place-turn">Turn</button>
+      <button class="btn primary small" id="place-ok">Put it here</button>
+    </div>
+  </div>
 
   <button class="btn ghost small" id="clip-skip">Skip</button>
   <div id="caption" class="caption" role="status" aria-live="polite"></div>

@@ -286,8 +286,10 @@ export function createActivityDirector(world, haven) {
   const camp = makeCampfire();
   camp.visible = false;
   const bed = makeBed();
-  props.add(book, basket, box, zzz, bouquet, butterfly, sniff, camp, bed);
-  const hideProps = () => { book.visible = basket.visible = box.visible = zzz.visible = butterfly.visible = sniff.visible = bed.visible = false; };
+  const snack = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 10), std('#d2453a'));
+  snack.castShadow = true;
+  props.add(book, basket, box, zzz, bouquet, butterfly, sniff, camp, bed, snack);
+  const hideProps = () => { book.visible = basket.visible = box.visible = zzz.visible = butterfly.visible = sniff.visible = bed.visible = snack.visible = false; };
   // The butterfly drifts toward wherever it's headed (or rides on a nose).
   const fly = { target: new V(), onNose: false };
   let crown = null; // { obj, until }
@@ -900,6 +902,88 @@ export function createActivityDirector(world, haven) {
       await faceCamera(tk);
     },
 
+    // ---- Looking after your dragon (from the feelings button) ----
+    async feed(tk, ctx) {
+      await settle(tk);
+      await faceCamera(tk);
+      const f = front(0.85);
+      snack.material.color.set(ctx.treatColor || '#d2453a');
+      snack.position.set(f.x, groundY + 0.1, f.z);
+      snack.scale.setScalar(0.001);
+      snack.visible = true;
+      world.tween(0.4, (q) => snack.scale.setScalar(Math.max(0.001, q)));
+      await sleep(tk, 0.7);
+      dragon.react('tilt');
+      await sleep(tk, 0.8);
+      for (let i = 0; i < 3; i++) {
+        dragon.setPose({ headDown: 1, nibble: 1 });
+        await sleep(tk, 1.1);
+        snack.scale.setScalar(Math.max(0.001, 1 - (i + 1) / 3));
+        dragon.setPose({ nibble: 0.6 });
+        await sleep(tk, 0.5);
+      }
+      snack.visible = false;
+      dragon.setPose({});
+      dragon.react('hop');
+      ctx.think(ctx.line, 3800);
+      await sleep(tk, 1.5);
+    },
+
+    async shortnap(tk, ctx) {
+      await settle(tk);
+      await faceCamera(tk);
+      ctx.think('Just a little nap…', 2600);
+      dragon.setPose({ lie: 1 });
+      await sleep(tk, 1.6);
+      dragon.setPose({ lie: 1, sleep: 1 });
+      zzz.visible = true;
+      await sleep(tk, 16);
+      zzz.visible = false;
+      dragon.setPose({ lie: 0.6 });
+      await sleep(tk, 1.4);
+      dragon.setPose({});
+      dragon.react('stretch');
+      ctx.think('Ahh. Much better.', 3000);
+      await sleep(tk, 2.0);
+    },
+
+    // A paddle around the pond, then a big shake.
+    async swim(tk, ctx) {
+      await settle(tk);
+      const c = ctx.pond;
+      const p = dragon.root.position;
+      const a0 = Math.atan2(p.z - c.z, p.x - c.x);
+      const edge = new V(c.x + Math.cos(a0) * (c.r + 0.6), 0, c.z + Math.sin(a0) * (c.r + 0.6));
+      ctx.think('Last one in is a soggy egg!', 2800);
+      await walk(tk, edge);
+      await turnTo(tk, c.x, c.z);
+      dragon.react('hop');
+      await sleep(tk, 0.3);
+      const r = Math.max(0.6, c.r - 1.2);
+      await moveTo(tk, c.x + Math.cos(a0) * r, c.z + Math.sin(a0) * r, { y: -0.55, speed: 1.8 });
+      ctx.splash(new V(dragon.root.position.x, 0.1, dragon.root.position.z));
+      let a = a0;
+      let next = 0.6;
+      dragon.setPose({ walk: 0.4 });
+      await drive(tk, (dt) => {
+        a += dt * 0.55;
+        dragon.root.position.set(c.x + Math.cos(a) * r, -0.55 + Math.sin(a * 6) * 0.04, c.z + Math.sin(a) * r);
+        dragon.root.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a));
+        next -= dt;
+        if (next <= 0) { next = 0.9; ctx.splash(new V(dragon.root.position.x, 0.1, dragon.root.position.z)); }
+        return a > a0 + TAU * 1.25;
+      });
+      dragon.setPose({});
+      ctx.think('Wheee!', 1800);
+      const out = new V(c.x + Math.cos(a) * (c.r + 0.7), 0, c.z + Math.sin(a) * (c.r + 0.7));
+      await moveTo(tk, out.x, out.z, { y: 0, speed: 1.8 });
+      await faceCamera(tk);
+      dragon.react('celebrate'); // a big shake
+      ctx.splash(new V(out.x, 0.6, out.z));
+      ctx.think('That was the best swim ever.', 3400);
+      await sleep(tk, 2.0);
+    },
+
     // Just the special move, with a line.
     async showoff(tk, ctx) {
       await settle(tk);
@@ -909,14 +993,42 @@ export function createActivityDirector(world, haven) {
       await sleep(tk, ctx.ability() / 1000);
     },
 
-    // Fly to another island and land there.
+    // Fly to another island and land there: take off, a long gentle glide
+    // along a curve (swooping a little), then circle down to land.
     async travel(tk, target) {
       camp.visible = false;
       dragon.setPose({ fly: 1 });
       const p = dragon.root.position;
-      await moveTo(tk, p.x, p.z, { y: p.y + 2.5, speed: 2.2 });
+      await moveTo(tk, p.x, p.z, { y: p.y + 2.2, speed: 2.4 });
       await turnTo(tk, target.x, target.z);
-      await moveTo(tk, target.x, target.z, { y: target.y + 3, speed: 16 });
+      const a = p.clone();
+      const b = new V(target.x, target.y + 3.2, target.z);
+      const dir = new V().subVectors(b, a);
+      const side = new V(-dir.z, 0, dir.x).normalize().multiplyScalar(dir.length() * 0.18);
+      const curve = new THREE.CubicBezierCurve3(
+        a,
+        a.clone().addScaledVector(dir, 0.3).add(side).add(new V(0, 6, 0)),
+        a.clone().addScaledVector(dir, 0.7).sub(side).add(new V(0, 4, 0)),
+        b,
+      );
+      const len = curve.getLength();
+      let u = 0;
+      const tan = new V();
+      dragon.setPose({ fly: 1 });
+      await drive(tk, (dt) => {
+        // ease in and out of the glide
+        const speed = 10 * Math.min(1, 0.3 + u * 4, 0.3 + (1 - u) * 4);
+        u = Math.min(1, u + (speed * dt) / len);
+        curve.getPoint(u, dragon.root.position);
+        curve.getTangent(Math.min(0.999, u), tan);
+        const want = Math.atan2(tan.x, tan.z);
+        let diff = want - dragon.root.rotation.y;
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+        dragon.root.rotation.y += diff * Math.min(1, dt * 3);
+        dragon.setPose({ fly: 1, bank: Math.max(-0.4, Math.min(0.4, -diff * 1.5)) });
+        return u >= 1;
+      });
+      dragon.setPose({ fly: 1 });
       await moveTo(tk, target.x, target.z, { y: target.y, speed: 1.8 });
       groundY = target.y;
       dragon.setPose({});

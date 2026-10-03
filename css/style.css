@@ -251,7 +251,7 @@ body[data-screen="focus"] #focus { opacity: 1; visibility: visible; transition: 
 }
 .caption.show { opacity: 1; transform: translate(-50%, 0); }
 @media (min-width: 820px) { body[data-screen="haven"] .caption { left: calc(50% - 198px); } }
-@media (max-width: 819px) { body[data-screen="haven"] .caption { bottom: auto; top: 90px; } }
+@media (max-width: 819px) { body[data-screen="haven"] .caption { bottom: auto; top: 142px; } }
 body[data-screen="select"] .caption { bottom: auto; top: 110px; }
 
 .celebrate {
@@ -681,6 +681,59 @@ body[data-screen="clip"] .caption { bottom: 28px; top: auto; left: 50%; }
 body[data-screen="clip"] .discovery, body[data-screen="vale"] .discovery { left: 50%; }
 body:has(.discovery.show) .caption { opacity: 0; }
 
+/* ---------- How your dragon feels today ---------- */
+.feel-pill {
+  position: absolute; left: 16px; top: 86px; display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 14px 6px 8px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--parch-glass); box-shadow: var(--shadow); color: var(--ink); cursor: pointer;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.feel-pill:empty { display: none; }
+.feel-pill .feel-icon { font-size: 1.35rem; line-height: 1; }
+.feel-pill .feel-text { display: flex; flex-direction: column; text-align: left; font-weight: 800; font-size: 0.9rem; line-height: 1.1; }
+.feel-pill small { font-size: 0.66rem; font-weight: 700; color: var(--ink-faint); letter-spacing: 0.04em; }
+.care-feel { display: flex; gap: 14px; align-items: center; padding: 12px 14px; border-radius: 16px; background: var(--gold-soft); margin-top: 6px; }
+.care-icon { font-size: 2.4rem; line-height: 1; }
+.care-feel .eyebrow { margin: 0 0 2px; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold-deep); }
+.care-quote { margin: 0; font-family: var(--serif); font-size: 1.15rem; line-height: 1.3; }
+.care-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+.care-btn, .treat-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; border-radius: 14px;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, 0.7); font: 700 0.85rem var(--sans); color: var(--ink); cursor: pointer;
+}
+.care-btn span, .treat-btn span { font-size: 1.5rem; line-height: 1.2; }
+.care-btn.wanted { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(201, 154, 62, 0.35); background: #fffaf0; }
+.care-treats { margin-top: 14px; }
+.care-treats .eyebrow { margin: 0 0 6px; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); }
+.treat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.treat-btn small { color: var(--ink-faint); }
+.treat-btn.fav { border-color: #e79ab4; }
+.card-emoji { display: block; font-size: 3rem; line-height: 1.1; margin: 2px auto 4px; }
+.card-emoji.small { display: inline-block; font-size: 1.5rem; margin: 0; }
+.disc-note { margin: 6px 0 0; font-size: 0.82rem; font-weight: 700; color: var(--lav); }
+.c-tale { display: block; margin-top: 4px; font-size: 0.78rem; font-style: italic; color: var(--lav); }
+.c-links { display: flex; gap: 10px; justify-content: center; }
+.treat-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.treat-list li { padding: 6px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.6); border: 1px solid var(--line); font-weight: 700; font-size: 0.88rem; }
+.treat-list small { color: var(--ink-faint); }
+
+/* ---------- Placing a new thing in the Haven ---------- */
+.place-bar {
+  position: fixed; left: 50%; bottom: calc(18px + var(--safe-b)); transform: translateX(-50%); z-index: 22;
+  width: min(460px, calc(100vw - 32px)); padding: 12px 14px; border-radius: 18px;
+  background: var(--parch-glass); border: 1px solid var(--line); box-shadow: var(--shadow);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); display: none;
+}
+body[data-screen="place"] .place-bar { display: block; }
+.place-bar p { margin: 0 0 10px; text-align: center; font-size: 0.95rem; }
+.place-bar b { display: block; font-family: var(--serif); font-size: 1.25rem; }
+.place-actions { display: flex; gap: 8px; justify-content: center; }
+
+/* ---------- The Door as a journey ---------- */
+.rune-list li.next { background: var(--gold-soft); border-radius: 12px; box-shadow: inset 0 0 0 1px rgba(201, 154, 62, 0.45); }
+.rune-list li.later { opacity: 0.5; }
+.rune-list .t-eyebrow { display: block; font-size: 0.66rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold-deep); }
+
 /* ---------- The old map, drawn out ---------- */
 .old-map { display: block; width: min(340px, 100%); height: auto; margin: 0 auto; border-radius: 8px; box-shadow: 0 2px 10px rgba(52, 40, 18, 0.18); }
 .discovery.with-map .old-map { width: min(300px, 100%); margin-bottom: 8px; }
@@ -735,3 +788,4 @@ body:has(.discovery.show) .caption { opacity: 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }
+body[data-screen="place"] .caption { display: none; }

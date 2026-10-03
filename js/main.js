@@ -23,7 +23,7 @@ import { createHatchlings } from './world/hatchlings.js';
 import { createCollection } from './ui/collection.js';
 import { byId, inHaven } from './data/discoveries.js';
 import {
-  rewardQuest, eggFraction, eggPalette, eggReady, eggStage, eggNeed, hatchEgg, foundOf, openChest, grant,
+  rewardQuest, eggFraction, eggPalette, eggReady, eggStage, eggNeed, hatchEgg, foundOf, openChest, grant, placeItem, storeItem,
 } from './rewards.js';
 import { $, $$, esc, say, tell, ask, celebrate, hideCelebrate, pauseTells, resumeTells } from './ui/common.js';
 import { GIFTS, raising, wishBaby, wishText, eggInsight, wishProgress, startRaising } from './wishes.js';
@@ -34,6 +34,10 @@ import { valeWalkable } from './world/vale.js';
 import { prefersReducedMotion } from './ui/settings.js';
 import { createBubbles } from './ui/bubble.js';
 import { createMoments } from './moments.js';
+import { createVisitors } from './world/visitors.js';
+import { createCare } from './care.js';
+import { buildSkyRoute } from './world/sky.js';
+import { visitorById } from './data/life.js';
 
 const world = createWorld($('#world'));
 const haven = buildHaven(world, { say });
@@ -77,6 +81,8 @@ const hatchlings = createHatchlings(world, haven, {
   isNestling: (id) => raising() && state.wish.creatureId === id,
 });
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const visitors = createVisitors(world, { say });
+buildSkyRoute(world, new THREE.Vector3(0, 2, 0), VALE_CENTER.clone().add(new THREE.Vector3(0, 2, 0)));
 
 // Thought bubbles, and what happens when you tap your dragon.
 const bubbles = createBubbles(world);
@@ -101,7 +107,8 @@ const moments = createMoments({
 });
 
 // Bring back everything discovered so far.
-for (const id of Object.keys(state.found)) if (inHaven(byId(id) || {})) garden.place(id);
+for (const id of Object.keys(state.found)) if (inHaven(byId(id) || {}) && !(state.unplaced || []).includes(id)) garden.place(id);
+for (const id of state.visitors || []) visitors.spawn(id);
 garden.setTreasures(foundOf('treasure').length);
 for (const c of state.creatures) hatchlings.spawn(c);
 haven.egg.setLook(eggPalette().egg, eggFraction());
@@ -322,6 +329,7 @@ function enterHaven(flyIn = true) {
   }
   world.onTap(companion.root, () => moments.tap());
   applyMeadow();
+  care.render();
   $('#haven-sub').textContent = `Verdant Vale · with ${def.name}`;
   document.body.dataset.dragonName = def.name;
   if (!questUIReady) {
@@ -476,6 +484,7 @@ function endClip() {
   refreshDoor(true);
   if (clipsWaiting === 0) {
     setTimeout(resumeTells, 700);
+    setTimeout(placeNext, 2400);
     while (calmQueue.length) setTimeout(calmQueue.shift(), 900);
   }
 }
@@ -483,41 +492,157 @@ function endClip() {
 async function completionClip(q, r, prefix) {
   beginClip();
   celebrate(q.title, prefix.trim(), 0);
-  const def = DRAGONS[state.dragon];
-  // 1. your dragon, up close, doing its special move
+  // 1. your dragon, up close, celebrating (a different way each time)
   const p = companion.root.position;
   const ry = companion.root.rotation.y;
   const f = new THREE.Vector3(Math.sin(ry), 0, Math.cos(ry));
-  // Everything here is unhurried on purpose: arrive, take a breath, then watch.
-  await cfly([p.x + f.x * 5 + f.z * 0.9, p.y + 2.0, p.z + f.z * 5 - f.x * 0.9], [p.x, p.y + 1.15, p.z], 1.8);
-  companion.react('celebrate');
+  await cfly([p.x + f.x * 5 + f.z * 0.9, p.y + 2.0, p.z + f.z * 5 - f.x * 0.9], [p.x, p.y + 1.15, p.z], 1.6);
+  const how = ['celebrate', 'move', 'stretch'].filter((k) => k !== lastCheer)[Math.floor(Math.random() * 2)];
+  lastCheer = how;
   garden.sparkle(p, 20);
-  say(pickLine(def.lines.complete), 3000);
-  await cwait(2200);
-  const ms = abilities.perform(companion);
-  say(ABILITY_LINES[def.id](def.name), ms + 1800);
-  // drift in a little closer while the move plays
-  cfly([p.x + f.x * 3.9 + f.z * 0.5, p.y + 1.8, p.z + f.z * 3.9 - f.x * 0.5], [p.x, p.y + 1.2, p.z], (ms + 1600) / 1000);
-  await cwait(ms + 1800);
-  // 2. the egg gets a little warmer
+  if (how === 'move') {
+    const ms = abilities.perform(companion);
+    await cwait(ms + 600);
+  } else {
+    companion.react(how);
+    await cwait(2200);
+  }
+  // 2. the egg, only when there's something worth seeing (ready, a new stage, or now and then)
   if (r?.warmed) {
-    const e = haven.egg.worldPosition();
-    await cfly([e.x - 1.9, 1.6, e.z + 2.9], [e.x, 0.55, e.z], 1.8);
-    await cwait(500);
-    haven.egg.setLook(eggPalette().egg, eggFraction());
-    haven.egg.swell(clipSkip ? 0.3 : 3.6);
-    garden.sparkle(e, 14);
-    say(r.nowReady ? 'The egg is wiggling. It’s ready to hatch!' : 'The egg glows a little warmer.', 4200);
-    // slowly lean in toward the glow
-    cfly([e.x - 1.3, 1.25, e.z + 2.0], [e.x, 0.55, e.z], 3.4);
-    await cwait(1900);
-    haven.egg.pulse();
-    await cwait(2300);
+    const fr = eggFraction();
+    const stage = (x) => (x >= 1 ? 3 : x >= 0.6 ? 2 : x >= 0.3 ? 1 : 0);
+    const newStage = stage(fr) > stage(fr - r.gain / eggNeed());
+    haven.egg.setLook(eggPalette().egg, fr);
+    if (r.nowReady || newStage || Math.random() < 0.25) {
+      const e = haven.egg.worldPosition();
+      await cfly([e.x - 1.6, 1.4, e.z + 2.4], [e.x, 0.55, e.z], 1.6);
+      haven.egg.swell(clipSkip ? 0.3 : 2.6);
+      garden.sparkle(e, 14);
+      if (r.nowReady) say('The egg is wiggling. It’s ready to hatch!', 3600);
+      await cwait(2400);
+    }
   }
   hideCelebrate();
   // 3. the reward, in action
-  if (r?.item) await showRewards([r.item]);
+  if (r?.gift) await showGift(r.gift);
   endClip();
+}
+let lastCheer = null;
+
+// Each kind of reward gets its own little moment, then a card.
+async function showGift(g, { zoom = true } = {}) {
+  const cinematic = zoom && where === 'haven' && companion;
+  const n = DRAGONS[state.dragon].name;
+  if (g.type === 'item') {
+    const it = g.item;
+    if (inHaven(it) && garden.canPlace(it.id)) {
+      // Something for the Haven: you decide where it goes, right after.
+      sfx.discovery();
+      await collection.showDiscovery(it, { placeLater: true });
+      pendingPlace.push(it.id);
+      return;
+    }
+    return showRewards([it], { zoom });
+  }
+  if (g.type === 'treat') {
+    const t = g.treat;
+    if (cinematic) {
+      const p = companion.root.position;
+      const ry = companion.root.rotation.y;
+      const at = p.clone().add(new THREE.Vector3(Math.sin(ry) * 0.9, 0, Math.cos(ry) * 0.9));
+      companion.setPose({ headDown: 1, nibble: 1 });
+      await cwait(1400);
+      companion.setPose({});
+      garden.popTreasure(t.color, at);
+      companion.react('hop');
+      await cwait(1800);
+    }
+    sfx.discovery();
+    await collection.showCard({
+      icon: t.icon, eyebrow: `${n} found a treat!`, title: t.name, desc: t.desc,
+      note: `Saved for later. Feed it to ${n} from the button at the top left.`, button: 'Yum!',
+    });
+    care.render();
+    return;
+  }
+  if (g.type === 'visitor') {
+    const v = g.visitor;
+    const home = visitors.homeOf(v.id);
+    if (cinematic) await cfly(...lookAtSpot(home, 2.6, true), 1.8);
+    visitors.spawn(v.id, { arrive: true });
+    visitors.face(v.id, world.camera.position.x, world.camera.position.z);
+    garden.sparkle(home, 26);
+    sfx.discovery();
+    if (cinematic) {
+      await cwait(900);
+      await Promise.race([bubbles.show(() => (visitors.position(v.id) || home).clone().add(new THREE.Vector3(0, 0.9, 0)), { name: v.name, text: v.hello }), cwait(6000)]);
+      bubbles.hide();
+    }
+    await collection.showCard({
+      icon: v.icon, eyebrow: 'Someone new moved in!', title: `${v.name} the ${v.species}`,
+      desc: cinematic ? 'They’ve made themselves at home. Tap them to say hello.' : v.hello, button: 'Welcome!',
+    });
+  }
+}
+
+// ---- Choosing where Haven things go ----
+// Tap the ground to move it, turn it if you like, then put it there (or
+// save it for later in Hatch & Treasures).
+const pendingPlace = [];
+let placing = null; // { id, obj, ry }
+function placeNext() {
+  if (!pendingPlace.length || placing || busy || document.body.dataset.screen !== 'haven') return;
+  startPlacing(pendingPlace.shift());
+}
+function startPlacing(id) {
+  if (placing || busy) return;
+  const it = byId(id);
+  if (!it || !garden.canPlace(id)) return;
+  questUI?.setSheet('peek');
+  garden.remove(id);
+  garden.place(id, true);
+  const obj = garden.objectOf(id);
+  placing = { id, obj, ry: obj.rotation.y };
+  busy = true;
+  setScreen('place');
+  world.controls.enabled = true;
+  goTo('haven', 1.4);
+  $('#place-name').textContent = it.name;
+}
+function finishPlacing(keep) {
+  if (!placing) return;
+  const { id, obj } = placing;
+  if (keep) {
+    placeItem(id, [obj.position.x, obj.position.y, obj.position.z, obj.rotation.y]);
+    garden.sparkle(obj.position, 30);
+    sfx.discovery();
+    companion?.react('hop');
+  } else {
+    storeItem(id);
+    garden.remove(id);
+    tell('It’s saved in Hatch & Treasures, under Garden. Place it whenever you like.');
+  }
+  placing = null;
+  busy = false;
+  setScreen('haven');
+  setTimeout(placeNext, 600);
+}
+$('#place-turn').addEventListener('click', () => { if (placing) placing.obj.rotation.y += Math.PI / 4; });
+$('#place-ok').addEventListener('click', () => finishPlacing(true));
+$('#place-later').addEventListener('click', () => finishPlacing(false));
+{
+  // a tap (not a drag) on the ground moves the thing being placed
+  let down = null;
+  $('#world').addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; });
+  $('#world').addEventListener('pointerup', (e) => {
+    if (!placing || !down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) return;
+    const pt = world.groundPoint(e.clientX, e.clientY, 0);
+    if (!pt) return;
+    const ok = Math.hypot(pt.x, pt.z) < 11.5 && Math.hypot(pt.x + 5.6, pt.z + 2.8) > 2.3 && Math.hypot(pt.x - 5.2, pt.z - 1.4) > 2.5 && !(Math.abs(pt.x) < 3.4 && pt.z < -7.6);
+    if (!ok) return say('That spot’s taken. Try somewhere on the grass.', 2400);
+    placing.obj.position.set(pt.x, placing.obj.position.y, pt.z);
+    garden.sparkle(pt, 8);
+  });
 }
 
 // Completing a Quest: celebrate, warm the egg, and sometimes discover something.
@@ -540,7 +665,7 @@ function onComplete(q, { focusMinutes = 0, prefix = '' } = {}) {
       eggLine = r.nowReady ? ' The egg is ready to hatch!' : ' The egg glows a little warmer.';
     }
     celebrate(q.title, prefix + completionLine() + eggLine, 4200);
-    if (r?.item) setTimeout(() => showRewards([r.item], { zoom: false }).then(() => refreshDoor(true)), 2600);
+    if (r?.gift) setTimeout(() => showGift(r.gift, { zoom: false }).then(() => { refreshDoor(true); placeNext(); }), 2600);
     else refreshDoor(true);
     queueWish(granted);
     return;
@@ -662,6 +787,7 @@ const collection = createCollection({
   getDragonName: () => DRAGONS[state.dragon]?.name || 'Your dragon',
   onHatch: () => hatchSequence(),
   onShowItem: showItem,
+  onPlace: (id) => { if (document.body.dataset.screen === 'haven' && where === 'haven') startPlacing(id); },
 });
 $('#collection-btn').addEventListener('click', () => collection.open(eggReady() ? 'eggs' : undefined));
 
@@ -707,7 +833,7 @@ function refreshDoor(announce = true) {
   haven.door.pulse();
   const msg = allLit()
     ? 'All eight symbols on the Ancient Door are glowing. The Door is awake! Tap it to see.'
-    : `A new symbol on the Ancient Door just lit up: “${RUNES[fresh[0]].name}.” Tap the Door to see them all.`;
+    : `A symbol on the Ancient Door just woke: “${RUNES[fresh[fresh.length - 1]].name}.” Quill in Verdant Vale can tell you what it means. Tap the Door to see what wakes next.`;
   whenCalm(() => tell(msg));
 }
 
@@ -730,25 +856,41 @@ let where = 'haven';
 let busy = false;
 const HAVEN_CENTER = new THREE.Vector3(0, 0, 0);
 
+// While flying, the camera rides just behind and above your dragon.
+let chase = null;
+world.addUpdater((t, dt) => {
+  if (!chase || !companion) return;
+  const d = companion.root;
+  const fwd = new THREE.Vector3(Math.sin(d.rotation.y), 0, Math.cos(d.rotation.y));
+  const want = d.position.clone().addScaledVector(fwd, -6.5).add(new THREE.Vector3(0, 2.4, 0));
+  const k = 1 - Math.exp(-dt * chase.stiff);
+  world.camera.position.lerp(want, k);
+  world.controls.target.lerp(d.position.clone().addScaledVector(fwd, 3).add(new THREE.Vector3(0, 0.8, 0)), k);
+  world.camera.lookAt(world.controls.target);
+  chase.stiff = Math.min(3.2, chase.stiff + dt * 1.2); // ease into the chase
+});
+async function flyAlong(trip, lightFocus, bounds, radius) {
+  chase = { stiff: 0.4 };
+  sfx.whoosh();
+  // halfway there, the light moves to where you're going
+  setTimeout(() => { haven.setLightFocus(lightFocus); world.setBounds(bounds, radius); }, 3500);
+  await trip;
+  chase = null;
+}
+
 async function travelToVale() {
   if (busy || where === 'vale' || !companion) return;
   if (!valeUnlocked()) return say('The path to the Vale is still misty. Finish a Quest to clear it.', 4200);
   busy = true;
   collection.hideDiscovery();
+  questUI?.setSheet('peek');
   setScreen('travel');
   world.controls.enabled = false;
-  const trip = director.travel(companion, vale.arrive);
-  sfx.whoosh();
   audio.setLocation('vale');
   const v = view('vale');
-  const mid = world.camera.position.clone().lerp(new THREE.Vector3(...v.pos), 0.5).add(new THREE.Vector3(0, 10, 0));
-  const midTarget = world.controls.target.clone().lerp(new THREE.Vector3(...v.target), 0.5);
-  await world.flyTo(mid.toArray(), midTarget.toArray(), 2);
-  haven.setLightFocus(VALE_CENTER);
-  world.setBounds(VALE_CENTER, 11);
   world.controls.maxDistance = Math.max(40, v.dist * 1.3);
-  await world.flyTo(v.pos, v.target, 2.6);
-  await trip;
+  await flyAlong(director.travel(companion, vale.arrive), VALE_CENTER, VALE_CENTER, 11);
+  await world.flyTo(v.pos, v.target, 2.4);
   where = 'vale';
   story.setLocation();
   setScreen('vale');
@@ -766,17 +908,10 @@ async function returnToHaven() {
   busy = true;
   setScreen('travel');
   world.controls.enabled = false;
-  const trip = director.travel(companion, haven.anchors.home);
-  sfx.whoosh();
   audio.setLocation('haven');
   const v = view('haven');
-  const mid = world.camera.position.clone().lerp(new THREE.Vector3(...v.pos), 0.5).add(new THREE.Vector3(0, 10, 0));
-  const midTarget = world.controls.target.clone().lerp(new THREE.Vector3(...v.target), 0.5);
-  await world.flyTo(mid.toArray(), midTarget.toArray(), 2);
-  haven.setLightFocus(HAVEN_CENTER);
-  world.setBounds(HAVEN_CENTER, 8);
-  await world.flyTo(v.pos, v.target, 2.6);
-  await trip;
+  await flyAlong(director.travel(companion, haven.anchors.home), HAVEN_CENTER, HAVEN_CENTER, 8);
+  await world.flyTo(v.pos, v.target, 2.4);
   where = 'haven';
   story.setLocation();
   setScreen('haven');
@@ -851,11 +986,15 @@ vale.targets.stones.forEach((obj, i) => {
     companion?.react('celebrate');
     sfx.moment();
     await vale.awakenStone(i);
+    const before = litRunes().filter(Boolean).length;
     refreshDoor(false);
     haven.door.pulse();
+    const woke = litRunes().filter(Boolean).length > before;
     tell(allLit()
-      ? 'Back in the Haven, the last symbol on the Ancient Door just lit up. The Door is awake! Go home and tap it.'
-      : `Back in the Haven, a new symbol on the Ancient Door just lit up: “${name}.”`);
+      ? 'Back in the Haven, the last symbol on the Ancient Door just woke. The Door is awake! Go home and tap it.'
+      : woke
+        ? 'Back in the Haven, a symbol on the Ancient Door just woke. Ask Quill what it means!'
+        : `The ${name} is awake. Its symbol on the Door will light when its turn comes.`);
   });
 });
 
@@ -980,6 +1119,20 @@ world.onDoubleTap((sx, sy) => {
   }, (p) => p);
 });
 
+// ---- How your dragon is feeling (just for fun) ----
+const care = createCare({
+  world, director, abilities,
+  getCompanion: () => companion,
+  getWhere: () => where,
+  isBusy: () => busy || touring || hatching,
+  think: (text, opts) => moments.think(text, opts),
+  walkable: (x, z) => (where === 'vale' ? valeWalkable(x, z) : havenWalkable(x, z)),
+  pond: { x: 5.2, z: 1.4, r: 2.3 },
+  splash: (pos) => garden.sparkle(pos, 16, '#9fd3ff'),
+  canTravel: () => where === 'haven' && valeUnlocked(),
+  travelToVale,
+});
+
 // ---- Welcome tour ----
 let touring = false;
 async function startTour() {
@@ -1051,4 +1204,4 @@ setTimeout(hideLoading, 2500); // in case frames are throttled
 // Debug handle for local development only.
 story.check();
 
-if (location.hostname === 'localhost') window.quest = { story, world, director, moments, bubbles, focus, hatchlings, onComplete, garden, haven, vale, state, reveal, hatchSequence, refreshDoor, travelToVale, returnToHaven, openDoorSequence, get companion() { return companion; } };
+if (location.hostname === 'localhost') window.quest = { story, world, director, moments, bubbles, focus, hatchlings, onComplete, visitors, care, garden, startPlacing, garden, haven, vale, state, reveal, hatchSequence, refreshDoor, travelToVale, returnToHaven, openDoorSequence, get companion() { return companion; } };

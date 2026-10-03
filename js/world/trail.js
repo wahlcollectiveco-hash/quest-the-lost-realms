@@ -254,7 +254,7 @@ export function createFlowerTrail(world, { getDragon, getGroundY }) {
     if (style.light) { ringLight.color.set(style.light.color); ringLight.position.set(p.x, p.y + 0.5, p.z + 1.1); }
     const id = d.def.id;
     const groundY = getGroundY();
-    if (p.y > groundY + 0.15) { hasLast = false; still = 0; ringCount = 0; return; } // flying: nothing left behind
+    if (Math.abs(p.y - groundY) > 0.15) { hasLast = false; still = 0; ringCount = 0; return; } // flying or swimming: nothing left behind
     if (!hasLast) { last.copy(p); prev.copy(p); hasLast = true; return; }
 
     // moving right now, or settled?

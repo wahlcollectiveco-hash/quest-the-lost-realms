@@ -6,6 +6,7 @@ import { paletteById } from '../data/creatures.js';
 import { eggFraction, eggNeed, eggPalette, eggReady, eggStage, renameCreature } from '../rewards.js';
 import { $, esc, openModal } from './common.js';
 import { raising, wishCard, wishBaby } from '../wishes.js';
+import { TREASURE_STORIES, TREATS, VISITORS } from '../data/life.js';
 import { MOMENTS, momentSeen } from '../story.js';
 
 const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
@@ -95,7 +96,7 @@ function eggSVG(tint, warmth) {
   </svg>`;
 }
 
-export function createCollection({ getDragonName, onHatch, onShowItem, onReplay }) {
+export function createCollection({ getDragonName, onHatch, onShowItem, onReplay, onPlace }) {
   let tab = 'eggs';
 
   function eggsTab() {
@@ -125,7 +126,8 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay 
         </div>
       </div>
       <h3 class="coll-h">Hatched friends</h3>
-      ${friends ? `<ul class="template-list">${friends}</ul>` : '<p class="coll-empty">No one yet. Finish Quests to keep the egg warm.</p>'}`;
+      ${friends ? `<ul class="template-list">${friends}</ul>` : '<p class="coll-empty">No one yet. Finish Quests to keep the egg warm.</p>'}
+      ${extrasHTML()}`;
   }
 
   function friendsHTML() {
@@ -138,6 +140,16 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay 
         <button class="btn ghost small" data-c="rename" data-id="${c.id}">Rename</button>
       </li>`;
     }).join('');
+  }
+
+  // Visitors who moved in, and the treats saved for your dragon.
+  function extrasHTML() {
+    const vis = (state.visitors || []).map((id) => VISITORS.find((v) => v.id === id)).filter(Boolean);
+    const pantry = TREATS.filter((t) => state.pantry?.[t.id] > 0);
+    return `<h3 class="coll-h">Visitors <span>${vis.length} of ${VISITORS.length}</span></h3>
+      ${vis.length ? `<ul class="template-list">${vis.map((v) => `<li><span class="card-emoji small" aria-hidden="true">${v.icon}</span><div class="t-info"><span class="t-name">${esc(v.name)}</span><span class="t-meta">The ${esc(v.species)}</span></div></li>`).join('')}</ul>` : '<p class="coll-empty">No one yet. Finish Quests and someone might move in.</p>'}
+      <h3 class="coll-h">Treats</h3>
+      ${pantry.length ? `<ul class="treat-list">${pantry.map((t) => `<li><span aria-hidden="true">${t.icon}</span>${esc(t.name)} <small>×${state.pantry[t.id]}</small></li>`).join('')}</ul>` : '<p class="coll-empty">No treats saved right now. Finish Quests to find some.</p>'}`;
   }
 
   // No egg yet: the newest baby is still settling in.
@@ -155,7 +167,8 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay 
         </div>
       </div>
       <h3 class="coll-h">Hatched friends</h3>
-      <ul class="template-list">${friendsHTML()}</ul>`;
+      <ul class="template-list">${friendsHTML()}</ul>
+      ${extrasHTML()}`;
   }
 
   function gridTab(kinds, { showHaven = false } = {}) {
@@ -170,7 +183,9 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay 
               ${iconFor(it, found)}
               <span class="c-name">${found ? esc(it.name) : 'Not yet found'}</span>
               ${found ? `<span class="c-desc">${esc(it.desc)}</span>` : ''}
-              ${found && showHaven && inHaven(it) ? `<button class="link-btn" data-c="show" data-id="${it.id}">See it in the Haven</button>` : ''}
+              ${found && it.kind === 'treasure' && TREASURE_STORIES[it.id] ? `<span class="c-tale">${esc(state.story.heard.quill?.[`t-${it.id}`] ? `Quill says: “${TREASURE_STORIES[it.id][TREASURE_STORIES[it.id].length - 1]}”` : 'Quill knows its story. Ask in Verdant Vale.')}</span>` : ''}
+              ${found && showHaven && inHaven(it) && (state.unplaced || []).includes(it.id) ? `<button class="btn primary small" data-c="place" data-id="${it.id}">Place it</button>` : ''}
+              ${found && showHaven && inHaven(it) && !(state.unplaced || []).includes(it.id) ? `<span class="c-links"><button class="link-btn" data-c="show" data-id="${it.id}">See it</button>${it.id !== 'dewdrop-lily' ? `<button class="link-btn" data-c="place" data-id="${it.id}">Move it</button>` : ''}</span>` : ''}
             </li>`;
           }).join('')}
         </ul>`;
@@ -208,7 +223,7 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay 
     tab = startTab;
     const m = openModal('<div class="collection"></div>', { className: 'collection-modal', label: 'Hatch and Treasures' });
     const root = $('.collection', m.el);
-    const TABS = [['eggs', 'Hatch'], ['treasures', 'Treasures'], ['garden', 'Garden'], ['lore', 'Lore']];
+    const TABS = [['eggs', 'Friends'], ['treasures', 'Treasures'], ['garden', 'Garden'], ['lore', 'Lore']];
     function draw() {
       const body = tab === 'eggs' ? eggsTab()
         : tab === 'treasures' ? gridTab(['treasure'])
@@ -233,6 +248,7 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay 
       if (act === 'close') m.close();
       if (act === 'hatch') { m.close(); onHatch(); }
       if (act === 'show') { m.close(); onShowItem(b.dataset.id); }
+      if (act === 'place') { m.close(); onPlace?.(b.dataset.id); }
       if (act === 'replay') { m.close(); onReplay?.(b.dataset.id); }
       if (act === 'rename') {
         const li = b.closest('li');
@@ -262,7 +278,7 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay 
   }
   // Shows one discovery and waits until it's tapped. The card sits low on the
   // screen so the thing itself stays visible in the world above it.
-  function showDiscovery(it, { more = false } = {}) {
+  function showDiscovery(it, { more = false, placeLater = false } = {}) {
     hideDiscovery();
     const name = getDragonName();
     const eyebrow = {
@@ -281,8 +297,9 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay 
       <h3>${esc(it.name)}</h3>
       <p class="disc-desc ${it.kind === 'story' ? 'story' : ''}">${esc(it.kind === 'story' ? it.text : it.desc)}</p>
       ${mapDone ? '<p class="disc-desc">The map is complete! A dotted path leads beyond the Ancient Door…</p>' : ''}
+      ${TREASURE_STORIES[it.id] ? '<p class="disc-note">Quill in Verdant Vale knows the story behind this one. Go and ask!</p>' : ''}
       <div class="disc-actions">
-        <button class="btn primary" data-disc="ok">${more ? 'Next' : inHaven(it) ? 'Nice!' : 'Collect'}</button>
+        <button class="btn primary" data-disc="ok">${more ? 'Next' : inHaven(it) ? (placeLater ? 'Choose a spot' : 'Nice!') : 'Collect'}</button>
       </div>`;
     card.classList.remove('show');
     void card.offsetWidth;
@@ -292,6 +309,26 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay 
       card.onclick = (e) => {
         if (e.target.closest('[data-disc="ok"]')) hideDiscovery();
       };
+    });
+  }
+
+  // A general reward card (treats, visitors, Haven things). Waits for a tap.
+  function showCard({ icon, eyebrow, title, desc, note, button = 'Nice!' }) {
+    hideDiscovery();
+    card.classList.remove('with-map');
+    card.innerHTML = `
+      ${icon.startsWith('<') ? icon : `<span class="card-emoji" aria-hidden="true">${icon}</span>`}
+      <p class="eyebrow">${esc(eyebrow)}</p>
+      <h3>${esc(title)}</h3>
+      ${desc ? `<p class="disc-desc">${esc(desc)}</p>` : ''}
+      ${note ? `<p class="disc-note">${esc(note)}</p>` : ''}
+      <div class="disc-actions"><button class="btn primary" data-disc="ok">${esc(button)}</button></div>`;
+    card.classList.remove('show');
+    void card.offsetWidth;
+    card.classList.add('show');
+    return new Promise((resolve) => {
+      resolveCard = resolve;
+      card.onclick = (e) => { if (e.target.closest('[data-disc="ok"]')) hideDiscovery(); };
     });
   }
 
@@ -321,5 +358,5 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay 
     });
   }
 
-  return { open, showDiscovery, hideDiscovery, showHatchling };
+  return { open, showDiscovery, showCard, hideDiscovery, showHatchling };
 }
