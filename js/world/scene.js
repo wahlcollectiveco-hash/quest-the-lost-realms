@@ -55,7 +55,7 @@ export function createWorld(canvas) {
   if (canBloom) {
     composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
-    composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.32, 0.6, 0.96));
+    composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.42, 0.7, 0.93));
     composer.addPass(new OutputPass());
   }
   let probeFrames = 5; // check the first frames only; getError stalls the GPU

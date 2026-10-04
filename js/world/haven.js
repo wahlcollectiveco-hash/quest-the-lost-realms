@@ -227,6 +227,7 @@ export function buildHaven(world, { say, sanctuary }) {
 
   let pm = null; // drifting light motes (brighter at night)
   let nightLevel = 0;
+  let shaftStrength = 0.6; // light shafts: strongest in the golden hours
   let meadow = null; // wildflower instances, so their density can change
   const cloudMats = [];
   const cloudTint = new THREE.Color('#ffffff');
@@ -234,7 +235,7 @@ export function buildHaven(world, { say, sanctuary }) {
 
   // ---- Sky, fog, light ----
   const skyColors = { top: new THREE.Color('#86add6'), mid: new THREE.Color('#f2d9ae'), low: new THREE.Color('#d8b98c') };
-  scene.fog = new THREE.Fog('#ecd4a8', 52, 200);
+  scene.fog = new THREE.Fog('#ecd4a8', 75, 260);
   const sky = new THREE.Mesh(
     new THREE.SphereGeometry(400, 32, 16),
     new THREE.ShaderMaterial({
@@ -254,7 +255,7 @@ export function buildHaven(world, { say, sanctuary }) {
         float hash(vec3 p){ return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453); }
         void main(){
           float h = vP.y;
-          vec3 c = h > 0.0 ? mix(mid, top, smoothstep(0.0, 0.5, h)) : mix(mid, low, smoothstep(0.0, -0.4, h));
+          vec3 c = h > 0.0 ? mix(mid, top, smoothstep(-0.02, 0.3, h)) : mix(mid, low, smoothstep(0.0, -0.4, h));
           float g = max(dot(vP, glowDir), 0.0);
           c += glowColor * (pow(g, 10.0) * 0.35 + pow(g, 60.0) * 0.25);
           // stars at night
@@ -288,11 +289,11 @@ export function buildHaven(world, { say, sanctuary }) {
   const TIMES = [
     { h: 0, ...NIGHT },
     { h: 4.5, ...NIGHT, night: 0.9 },
-    { h: 6, top: '#6f8fd0', mid: '#f9d2b8', low: '#b9b6dc', fog: '#e6cdc4', glow: '#ffb890', sun: '#ffd2b0', sunI: 2.3, sky: '#d9d2f4', ground: '#5c7a4e', hemiI: 1.25, exp: 1.0, night: 0.2, cloud: '#ffd9c8' },
-    { h: 9, top: '#4f9ae6', mid: '#d6eefa', low: '#9fcdf0', fog: '#cfe6f2', glow: '#fff0c8', sun: '#fff0cc', sunI: 3.0, sky: '#cfe4ff', ground: '#7fa85a', hemiI: 1.35, exp: 1.0, night: 0, cloud: '#ffffff' },
-    { h: 13, top: '#3f8fe6', mid: '#cdeafa', low: '#94c8f0', fog: '#c8e4f2', glow: '#fff6dc', sun: '#fff6e0', sunI: 3.2, sky: '#cfe6ff', ground: '#7fa85a', hemiI: 1.4, exp: 1.0, night: 0, cloud: '#ffffff' },
-    { h: 17.5, top: '#4f97e2', mid: '#fbe8c4', low: '#a9cbea', fog: '#e6dfcc', glow: '#ffd08a', sun: '#ffe2b0', sunI: 3.1, sky: '#cfdcff', ground: '#86a85a', hemiI: 1.3, exp: 1.0, night: 0, cloud: '#fff0d4' },
-    { h: 19.5, top: '#44529c', mid: '#f3ad92', low: '#7a78b4', fog: '#c9a09a', glow: '#ff9668', sun: '#ff9a6a', sunI: 2.2, sky: '#cdbcf0', ground: '#5a6c50', hemiI: 1.15, exp: 1.0, night: 0.35, cloud: '#f6b0a0' },
+    { h: 6, top: '#5f82cc', mid: '#f7c8a8', low: '#a9a8d6', fog: '#e2c2b8', glow: '#ffae80', sun: '#ffc9a0', sunI: 2.7, sky: '#b9b4ec', ground: '#7a6a52', hemiI: 1.0, exp: 1.02, night: 0.2, cloud: '#ffd2c0' },
+    { h: 9, top: '#3f8ee0', mid: '#cfe8f6', low: '#a0cbee', fog: '#cbe2ee', glow: '#fff0c8', sun: '#fff0cc', sunI: 3.4, sky: '#a9c6ff', ground: '#8c9a5c', hemiI: 1.0, exp: 1.02, night: 0, cloud: '#ffffff' },
+    { h: 13, top: '#3584dc', mid: '#c6e4f6', low: '#98c6ee', fog: '#c4dfef', glow: '#fff6dc', sun: '#fff4dc', sunI: 3.6, sky: '#a6c4ff', ground: '#8c9a5c', hemiI: 1.05, exp: 1.02, night: 0, cloud: '#ffffff' },
+    { h: 17.5, top: '#3a7dd0', mid: '#f8d4a0', low: '#a6c2e6', fog: '#e8cda6', glow: '#ffb860', sun: '#ffc57a', sunI: 3.8, sky: '#9db6f0', ground: '#a2875a', hemiI: 0.95, exp: 1.04, night: 0, cloud: '#ffe6c4' },
+    { h: 19.5, top: '#3d4a94', mid: '#f29c80', low: '#7270b0', fog: '#c8968e', glow: '#ff8a58', sun: '#ff915c', sunI: 2.8, sky: '#b0a4e6', ground: '#6e5a50', hemiI: 0.95, exp: 1.02, night: 0.35, cloud: '#f6a894' },
     { h: 21.5, ...NIGHT },
     { h: 24, ...NIGHT },
   ];
@@ -317,6 +318,7 @@ export function buildHaven(world, { say, sanctuary }) {
     hemi.intensity = a.hemiI + (b.hemiI - a.hemiI) * t;
     world.renderer.toneMappingExposure = a.exp + (b.exp - a.exp) * t;
     nightLevel = a.night + (b.night - a.night) * t;
+    shaftStrength = Math.max(0.35, 1 - Math.abs(h - 17.5) / 5) * (h > 6.5 && h < 20.5 ? 1 : 0);
     u.night.value = nightLevel;
     windowMat.emissiveIntensity = 2.2 + nightLevel * 1.6;
     lanternMat.emissiveIntensity = 2.4 + nightLevel * 2;
@@ -626,6 +628,8 @@ export function buildHaven(world, { say, sanctuary }) {
         pos: [R(-0.9, 0.1) * s, R(1.1, 1.7) * s, R(-0.1, 0.8) * s],
       }));
     }
+    // leaves shade themselves softly (no hard shadows from puff to puff)
+    crown.traverse((o) => { if (o.isMesh) o.receiveShadow = false; });
     g.add(crown);
     sway.push({ o: crown, ph: R(0, TAU), a: R(0.012, 0.026) });
     group.add(g);
@@ -663,7 +667,11 @@ export function buildHaven(world, { say, sanctuary }) {
   function bush(x, z, s = 1, blossoms = false) {
     const g = new THREE.Group();
     g.position.set(x, 0, z);
-    for (let i = 0; i < 4; i++) g.add(mesh(foliageGeo(R(0.42, 0.7) * s, 0.1, 14, 10), pick(bushMats), { pos: [R(-0.45, 0.45) * s, R(0.3, 0.5) * s, R(-0.35, 0.35) * s], scale: [1, 0.82, 1] }));
+    for (let i = 0; i < 4; i++) {
+      const puff = mesh(foliageGeo(R(0.42, 0.7) * s, 0.1, 22, 16), pick(bushMats), { pos: [R(-0.45, 0.45) * s, R(0.3, 0.5) * s, R(-0.35, 0.35) * s], scale: [1, 0.82, 1] });
+      puff.receiveShadow = false;
+      g.add(puff);
+    }
     if (blossoms) {
       const bm = pick(blossomMats);
       for (let i = 0; i < 14; i++) {
@@ -790,6 +798,36 @@ export function buildHaven(world, { say, sanctuary }) {
     cottage.add(door);
     cottage.add(mesh(new THREE.SphereGeometry(0.05, 8, 6), mat('#e0b25a', { metalness: 0.5, roughness: 0.3 }), { pos: [0.24, 0.62, 1.64] }));
   }
+  // A little stone chimney poking out of the cap, with a lazy curl of smoke.
+  const chimney = new THREE.Group();
+  chimney.position.set(-0.9, 3.75, -0.6);
+  chimney.add(mesh(new THREE.CylinderGeometry(0.2, 0.24, 1.0, 10), mat('#a59a86'), { pos: [0, 0.5, 0] }));
+  chimney.add(mesh(new THREE.CylinderGeometry(0.27, 0.27, 0.12, 10), mat('#8d8270'), { pos: [0, 1.02, 0] }));
+  cottage.add(chimney);
+  const smokeTex = (() => {
+    const [kc, kg] = canvas(64, 64);
+    const grad = kg.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(255,255,255,0.85)');
+    grad.addColorStop(0.5, 'rgba(250,246,238,0.45)');
+    grad.addColorStop(1, 'rgba(245,240,230,0)');
+    kg.fillStyle = grad;
+    kg.fillRect(0, 0, 64, 64);
+    return tex(kc);
+  })();
+  const puffs = Array.from({ length: 7 }, (_, i) => {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, color: '#d6cdd4', transparent: true, depthWrite: false }));
+    sp.userData.ph = i / 7;
+    cottage.add(sp);
+    return sp;
+  });
+  updaters.push((t) => {
+    for (const sp of puffs) {
+      const p = (t * 0.09 + sp.userData.ph) % 1;
+      sp.position.set(-0.9 + p * 0.9 + Math.sin(t * 0.7 + sp.userData.ph * 9) * 0.12 * p, 4.85 + p * 2.6, -0.6 - p * 0.4);
+      sp.scale.setScalar(0.35 + p * 1.1);
+      sp.material.opacity = Math.sin(Math.PI * Math.min(1, p * 1.2)) * 0.7;
+    }
+  });
   const windowMat = mat('#ffcf82', { emissive: '#ffb458', emissiveIntensity: 2.2, fog: true });
   for (const a of [-0.75, 0.75]) {
     const r = 1.45;
@@ -812,6 +850,66 @@ export function buildHaven(world, { say, sanctuary }) {
   cottage.add(mesh(new THREE.ConeGeometry(0.17, 0.14, 4), mat('#5b4230'), { pos: [0.95, 1.6, 1.95], rot: [0, Math.PI / 4, 0] }));
   cottage.lookAt(new V(0, 0, 3.5));
   group.add(cottage);
+  // Soft halos round the lantern and the windows: a warm glow, stronger at dusk.
+  const haloTex = (() => {
+    const [hc, hg] = canvas(128, 128);
+    const grad = hg.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grad.addColorStop(0, 'rgba(255,214,140,0.9)');
+    grad.addColorStop(0.35, 'rgba(255,190,110,0.35)');
+    grad.addColorStop(1, 'rgba(255,170,90,0)');
+    hg.fillStyle = grad;
+    hg.fillRect(0, 0, 128, 128);
+    return tex(hc);
+  })();
+  const halos = [];
+  const halo = (local, size) => {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+    s.position.copy(cottage.localToWorld(local.clone()));
+    s.scale.setScalar(size);
+    s.userData.size = size;
+    group.add(s);
+    halos.push(s);
+  };
+  cottage.updateMatrixWorld(true);
+  halo(new V(0.95, 1.4, 2.05), 1.6);
+  for (const a of [-0.75, 0.75]) halo(new V(Math.sin(a) * 1.55, 1.65, Math.cos(a) * 1.55), 1.3);
+  updaters.push((t) => {
+    for (const [i, s] of halos.entries()) {
+      s.material.opacity = (0.35 + nightLevel * 0.65) * (0.9 + 0.1 * Math.sin(t * 2.3 + i));
+      s.scale.setScalar(s.userData.size * (1 + nightLevel * 0.5));
+    }
+  });
+
+  // Light shafts slanting down through the trees in the warm part of the day.
+  const shaftTex = (() => {
+    const [sc2, sg2] = canvas(64, 256);
+    const grad = sg2.createLinearGradient(0, 0, 0, 256);
+    grad.addColorStop(0, 'rgba(255,230,170,0)');
+    grad.addColorStop(0.3, 'rgba(255,226,160,0.55)');
+    grad.addColorStop(1, 'rgba(255,220,150,0)');
+    sg2.fillStyle = grad;
+    sg2.fillRect(0, 0, 64, 256);
+    const side = sg2.createLinearGradient(0, 0, 64, 0);
+    side.addColorStop(0, 'rgba(0,0,0,1)');
+    side.addColorStop(0.5, 'rgba(0,0,0,0)');
+    side.addColorStop(1, 'rgba(0,0,0,1)');
+    sg2.globalCompositeOperation = 'destination-out';
+    sg2.fillStyle = side;
+    sg2.fillRect(0, 0, 64, 256);
+    return tex(sc2);
+  })();
+  const shafts = [[-7.2, -4.5, 2.4], [-3.2, -6.4, 1.8], [2.6, -6.8, 2.1], [-8.6, 1.2, 1.6], [6.4, -3.6, 1.7]].map(([x, z, w]) => {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: shaftTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, rotation: 0.38 }));
+    s.position.set(x, 3.6, z);
+    s.scale.set(w, 8, 1);
+    group.add(s);
+    return s;
+  });
+  updaters.push((t) => {
+    // strongest in golden hours, gone at night
+    const day = (1 - nightLevel) * shaftStrength;
+    shafts.forEach((s, i) => { s.material.opacity = day * (0.16 + 0.06 * Math.sin(t * 0.35 + i * 1.7)); });
+  });
   tap(cottage, () => say('Home, sweet mossy home. It smells like warm bread and rain.'));
 
   // ---- Rune textures (shared by Door and egg) ----
@@ -1264,10 +1362,10 @@ export function buildHaven(world, { say, sanctuary }) {
     const pos = new Float32Array(N * 3);
     const base = [];
     for (let i = 0; i < N; i++) {
-      const nearDoor = i < 40;
-      const x = nearDoor ? R(-3.5, 3.5) : R(-11, 11);
-      const z = nearDoor ? L.door[1] + R(-1.5, 3.5) : R(-11, 11);
-      const y = nearDoor ? R(0.6, 6) : R(0.4, 3);
+      const near = i < 34; // gathered round the cottage and the meadow
+      const x = near ? R(-7.5, 1.5) : R(-11, 11);
+      const z = near ? R(-4, 5) : R(-10, 10);
+      const y = near ? R(0.5, 4) : R(0.4, 3.2);
       base.push([x, y, z, R(0, TAU)]);
     }
     const geo = new THREE.BufferGeometry();
@@ -1290,7 +1388,7 @@ export function buildHaven(world, { say, sanctuary }) {
         pos[i * 3 + 2] = z + Math.cos(t * 0.25 + ph) * 0.5;
       }
       geo.attributes.position.needsUpdate = true;
-      pm.opacity = (0.75 + 0.25 * Math.sin(t * 0.8)) * (1 + nightLevel * 0.6);
+      pm.opacity = (0.8 + 0.2 * Math.sin(t * 0.8)) * (1 + nightLevel * 0.6);
     });
   }
 

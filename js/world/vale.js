@@ -451,8 +451,9 @@ export function buildVale(world) {
       const a = (i / n) * TAU + R(-0.4, 0.4);
       const ring = i === 0 ? 0 : R(0.55, 1.0);
       const r = (i === 0 ? R(1.25, 1.5) : R(0.8, 1.15)) * s;
-      crown.add(mesh(foliageGeo(r, 0.1), rand() < 0.7 ? base : pick(leafMats), { pos: [Math.cos(a) * ring * s, (i === 0 ? 0.9 : R(0.2, 1.0)) * s, Math.sin(a) * ring * s] }));
+      crown.add(mesh(foliageGeo(r, 0.1, 22, 15), rand() < 0.7 ? base : pick(leafMats), { pos: [Math.cos(a) * ring * s, (i === 0 ? 0.9 : R(0.2, 1.0)) * s, Math.sin(a) * ring * s] }));
     }
+    crown.traverse((o) => { if (o.isMesh) o.receiveShadow = false; });
     t.add(crown);
     sway.push({ o: crown, ph: R(0, TAU), a: R(0.012, 0.026) });
     group.add(t);

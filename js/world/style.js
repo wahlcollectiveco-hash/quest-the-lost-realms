@@ -24,7 +24,7 @@ export const ENV = {
 // ---- Soft cel shading ----
 // Four gentle bands, blended a little at the edges so it reads as painted
 // rather than hard-edged cartoon.
-export const ramp = new THREE.DataTexture(new Uint8Array([105, 110, 150, 196, 232, 250, 255, 255]), 8, 1, THREE.RedFormat);
+export const ramp = new THREE.DataTexture(new Uint8Array([78, 86, 128, 188, 232, 250, 255, 255]), 8, 1, THREE.RedFormat);
 ramp.minFilter = ramp.magFilter = THREE.LinearFilter;
 ramp.needsUpdate = true;
 
@@ -47,7 +47,7 @@ export function toon(color, o = {}) {
 // ---- Foliage ----
 // A wobbly sphere with baked colour: sunlit yellow-green on top, cool and a
 // little darker underneath. Use with a material that has vertexColors: true.
-export function foliageGeo(r, amt = 0.1, w = 18, h = 13) {
+export function foliageGeo(r, amt = 0.1, w = 28, h = 20) {
   const g = new THREE.SphereGeometry(r, w, h);
   const p = g.attributes.position;
   const v = new THREE.Vector3();
@@ -64,9 +64,9 @@ export function foliageGeo(r, amt = 0.1, w = 18, h = 13) {
   for (let i = 0; i < p.count; i++) {
     const t = nrm.getY(i) * 0.5 + 0.5; // 0 underneath … 1 on top
     const k = t * t;
-    col[i * 3] = 0.66 + 0.5 * k; // warmer on top
-    col[i * 3 + 1] = 0.74 + 0.36 * k;
-    col[i * 3 + 2] = 0.86 - 0.16 * k; // cooler underneath
+    col[i * 3] = 0.6 + 0.62 * k; // golden on top
+    col[i * 3 + 1] = 0.7 + 0.42 * k;
+    col[i * 3 + 2] = 0.9 - 0.3 * k; // cool and blue underneath
   }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return g;
