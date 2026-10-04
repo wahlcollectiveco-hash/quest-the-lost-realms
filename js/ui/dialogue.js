@@ -24,8 +24,9 @@ export const PORTRAITS = {
     <path d="M44 18l2-6 2 6z" fill="#f2c96a"/></svg>`,
 };
 
-// Show a few lines, one at a time. Resolves when closed.
-export function talk({ who, name, lines }) {
+// Show a few lines, one at a time. Resolves when closed. With `choices`,
+// the last line offers those buttons and resolves with the chosen id.
+export function talk({ who, name, lines, choices = null }) {
   return new Promise((resolve) => {
     const box = $('#dialogue');
     let i = 0;
@@ -37,17 +38,19 @@ export function talk({ who, name, lines }) {
           <p class="dlg-name">${esc(name)}</p>
           <p class="dlg-text">${esc(lines[i])}</p>
           <div class="dlg-actions">
-            <button class="btn ${last ? 'ghost' : 'primary'} small" data-dlg="${last ? 'close' : 'next'}">${last ? 'Got it' : 'Next'}</button>
+            ${last && choices
+              ? choices.map((c, k) => `<button class="btn ${k ? 'ghost' : 'primary'} small" data-choice="${esc(c.id)}">${esc(c.label)}</button>`).join('')
+              : `<button class="btn ${last ? 'ghost' : 'primary'} small" data-dlg="${last ? 'close' : 'next'}">${last ? 'Got it' : 'Next'}</button>`}
           </div>
         </div>`;
       box.querySelector('button').focus({ preventScroll: true });
       sfx.talk();
     }
-    function close() {
+    function close(result = null) {
       box.classList.remove('show');
       document.removeEventListener('keydown', onKey);
       box.onclick = null;
-      resolve();
+      resolve(result);
     }
     function advance() {
       if (i >= lines.length - 1) return close();
@@ -56,7 +59,10 @@ export function talk({ who, name, lines }) {
     }
     const onKey = (e) => { if (e.key === 'Escape') close(); };
     box.onclick = (e) => {
+      const choice = e.target.closest('[data-choice]')?.dataset.choice;
+      if (choice) return close(choice);
       if (e.target.closest('[data-dlg="close"]')) return close();
+      if (i >= lines.length - 1 && choices) return; // waiting for a choice
       advance();
     };
     document.addEventListener('keydown', onKey);

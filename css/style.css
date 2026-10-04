@@ -729,6 +729,34 @@ body[data-screen="place"] .place-bar { display: block; }
 .place-bar b { display: block; font-family: var(--serif); font-size: 1.25rem; }
 .place-actions { display: flex; gap: 8px; justify-content: center; }
 
+/* ---------- Something waiting in Dragon Haven ---------- */
+#vale-btn { position: relative; }
+#vale-btn.has-news::after {
+  content: ''; position: absolute; top: 2px; right: 2px; width: 11px; height: 11px; border-radius: 50%;
+  background: #f3b23c; box-shadow: 0 0 0 2px var(--parch), 0 0 10px #ffd98a; animation: newsPulse 2s ease-in-out infinite;
+}
+@keyframes newsPulse { 50% { transform: scale(1.25); } }
+
+/* ---------- The egg's symbol and the Door's, side by side ---------- */
+.symbol-card {
+  position: fixed; left: 50%; top: 14vh; transform: translate(-50%, 10px); z-index: 34;
+  display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: 20px;
+  background: rgba(30, 33, 28, 0.78); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  opacity: 0; pointer-events: none; transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.symbol-card.show { opacity: 1; transform: translate(-50%, 0); }
+.symbol-card figure { margin: 0; display: grid; justify-items: center; gap: 6px; }
+.symbol-card canvas { width: min(26vw, 120px); height: auto; }
+.symbol-card figcaption { color: #fdf6e4; font: 800 0.72rem var(--sans); letter-spacing: 0.12em; text-transform: uppercase; }
+.symbol-eq { color: #ffe3a0; font: 700 2.4rem var(--serif); text-shadow: 0 0 14px #ffd98a; }
+.star-steps { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; font-size: 0.9rem; }
+.star-steps li { display: flex; align-items: center; gap: 8px; color: var(--ink-soft); }
+.star-steps li.done { color: var(--ink); }
+.star-steps .tick { flex: none; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--gold); display: grid; place-items: center; }
+.star-steps li.done .tick { background: var(--gold); }
+.star-steps .tick svg { width: 12px; height: 12px; fill: none; stroke: #fff; stroke-width: 3; }
+.star-steps small { color: var(--ink-faint); }
+
 /* ---------- The Door as a journey ---------- */
 .rune-list li.next { background: var(--gold-soft); border-radius: 12px; box-shadow: inset 0 0 0 1px rgba(201, 154, 62, 0.45); }
 .rune-list li.later { opacity: 0.5; }

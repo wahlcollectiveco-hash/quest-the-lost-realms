@@ -1,16 +1,19 @@
 // Wishes: small "finish this and here's what happens next" goals.
 //
-// After an egg hatches there is no new egg straight away. Instead the baby
-// grows up a little first, one wish at a time:
-//   1. nest — the baby sleeps in the big nest; finish 2 Quests and your
+// After the egg hatches, the baby flies home with you and grows up a little,
+// one wish at a time:
+//   1. nest — the baby sleeps by the cottage; finish 2 Quests and your
 //             dragon builds them a nest of their own
 //   2. gift — your dragon wants to make them something (a flower crown, a
 //             first treasure, a star lantern): 30 minutes of focus, or 4 Quests
-//   3. egg  — something glows in the big nest; one more Quest and a new egg appears
-// While there's an egg, the "wish" is just a hint about how close it is.
+// One egg = one realm, so there's no new egg in this realm: the next one
+// will come from behind the Door. While there's an egg, the "wish" is just a
+// hint about how close it is.
+// hatch.phase: undefined/'egg' (warming), 'raising' (wishes), 'waiting' (no egg)
 import { state, save } from './state.js';
 import { DRAGONS } from './data/dragons.js';
 import { eggNeed, eggReady } from './rewards.js';
+import { starSteps } from './realm.js';
 
 export const GIFTS = {
   pebble: {
@@ -36,7 +39,6 @@ export const GIFTS = {
 const NEED = {
   nest: { quests: 2 },
   gift: { focus: 30, quests: 4 },
-  egg: { quests: 1 },
 };
 
 export const raising = () => state.hatch.phase === 'raising' && !!state.wish;
@@ -58,18 +60,19 @@ export function wishText() {
   const b = wishBaby()?.name || 'the little one';
   const step = state.wish.step;
   if (step === 'nest') return `Let’s help ${b} build a nest of their own! Finish 2 Quests and I’ll gather the twigs.`;
-  if (step === 'gift') return `${GIFTS[dragonId()].wish(b)} (Any 4 Quests works too.)`;
-  return 'Something is glowing in the big nest… Finish one more Quest and let’s see what it is.';
+  return `${GIFTS[dragonId()].wish(b)} (Any 4 Quests works too.)`;
 }
 
 // How close the egg is, as a friendly guess.
 export function eggInsight() {
-  if (state.hatch.phase === 'raising' || eggReady()) return null;
+  if (!hasEgg()) return null;
+  if (eggReady()) return 'The star egg is ready to hatch! Fly to Dragon Haven to be there when it does.';
   const left = Math.ceil(eggNeed() - state.hatch.warmth);
-  if (left <= 1) return 'This egg is so close to hatching! I think it only needs one more Quest.';
-  if (left <= 3) return 'The egg is nearly ready. Two or three more Quests should do it.';
-  return `The egg is warming up. About ${left} more Quests until it hatches. Focus Quests warm it faster.`;
+  if (left <= 1) return 'The star egg is so close to hatching! I think it only needs one more Quest.';
+  if (left <= 3) return 'The star egg is nearly ready. Two or three more Quests should do it.';
+  return `The star egg in Dragon Haven is warming up. About ${left} more Quests until it hatches. Focus Quests warm it faster.`;
 }
+export const hasEgg = () => !['raising', 'waiting'].includes(state.hatch.phase) && state.creatures.length === 0;
 
 // For the card at the top of Today's Quests.
 export function wishCard() {
@@ -82,7 +85,14 @@ export function wishCard() {
     return { eyebrow: `${dragonName()}’s wish`, text: wishText(), progress };
   }
   const insight = eggInsight();
-  return insight ? { eyebrow: 'The egg', text: insight, progress: '' } : null;
+  if (insight) return { eyebrow: 'The star egg', text: insight, progress: '' };
+  // After the hatch: the next goal is waking the Star on the Ancient Door.
+  if (!state.realm.doorOpened) {
+    const left = starSteps().filter((x) => !x.done);
+    if (!left.length) return { eyebrow: 'The Ancient Door', text: 'The Star on the Door is glowing! Fly to Dragon Haven and open it.', progress: '' };
+    return { eyebrow: 'Wake the Star on the Door', text: left.map((x) => x.label + (x.progress ? ` (${x.progress})` : '')).join(' · '), progress: '' };
+  }
+  return null;
 }
 
 // Count a finished Quest and/or some focus minutes toward the wish.
@@ -101,13 +111,20 @@ export function wishProgress({ quests = 0, focus = 0 } = {}) {
   if (w.step === 'nest') {
     if (c) c.nest = state.creatures.filter((x) => x.nest != null).length;
     state.wish = { step: 'gift', creatureId: w.creatureId, quests: 0, focus: 0 };
-  } else if (w.step === 'gift') {
-    if (c) c.gift = GIFTS[dragonId()].id;
-    state.wish = { step: 'egg', creatureId: w.creatureId, quests: 0, focus: 0 };
   } else {
-    state.hatch.phase = 'egg';
+    if (c) c.gift = GIFTS[dragonId()].id;
+    state.hatch.phase = 'waiting';
     state.wish = null;
   }
   save();
   return result;
+}
+
+// Saves from before one-egg-per-realm: if the star egg already hatched,
+// there's no new egg (and no "new egg" wish) until the next realm.
+export function settleOldSave() {
+  let changed = false;
+  if (state.wish?.step === 'egg') { state.wish = null; state.hatch.phase = 'waiting'; changed = true; }
+  if (state.creatures.length && !raising() && state.hatch.phase !== 'waiting') { state.hatch.phase = 'waiting'; changed = true; }
+  if (changed) save();
 }

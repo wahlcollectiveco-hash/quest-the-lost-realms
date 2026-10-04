@@ -3,13 +3,15 @@
 // just occasional, delightful changes in the world.
 import { state, save, uid } from './state.js';
 import { CATALOG, byId, inHaven } from './data/discoveries.js';
-import { TREATS, VISITORS } from './data/life.js';
+import { TREATS } from './data/life.js';
 import { PALETTES, NAMES } from './data/creatures.js';
 
 // ---- The egg ----
 export const eggNeed = () => 10 + 4 * state.hatch.eggIndex;
 export const eggFraction = () => Math.min(1, state.hatch.warmth / eggNeed());
-export const eggReady = () => state.hatch.phase !== 'raising' && state.hatch.warmth >= eggNeed();
+// One egg per realm: Realm 1 has the star egg, and once it hatches there's no egg until the next realm.
+const eggHere = () => !['raising', 'waiting'].includes(state.hatch.phase) && state.creatures.length === 0;
+export const eggReady = () => eggHere() && state.hatch.warmth >= eggNeed();
 
 export function eggPalette() {
   if (!state.hatch.palette) {
@@ -53,13 +55,13 @@ export function renameCreature(id, name) {
 
 // ---- Rewards ----
 // Every finished Quest brings one thing, and the kind keeps changing:
-//   a treat to feed your dragon, something for the Haven (you choose where
-//   it goes), a visitor who moves in, or a treasure for the pile.
+//   a treat to feed your dragon, something for your home (you choose where
+//   it goes), or a treasure for the pile.
 // Every third reward moves the story along instead (story fragments, map
 // pieces, the key, in this order).
 // Still deliberately not a points economy: nothing to count or spend.
 const PROGRESSION = ['story-1', 'map-1', 'story-2', 'map-2', 'mossy-key', 'map-3', 'story-3', 'map-4', 'story-4', 'story-5', 'story-6'];
-const WEIGHTS = { treat: 30, haven: 26, visitor: 18, treasure: 16 };
+const WEIGHTS = { treat: 34, haven: 36, treasure: 30 };
 const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 function pickGift() {
@@ -70,13 +72,12 @@ function pickGift() {
   const free = (kinds) => CATALOG.filter((c) => !c.special && kinds.includes(c.kind) && !state.found[c.id]);
   const havenItems = free(['flower', 'decoration']);
   const treasures = free(['treasure']);
-  const visitors = VISITORS.filter((v) => !(state.visitors || []).includes(v.id));
-  // The very first reward is a visitor, so the Haven feels alive right away.
-  if (log.count === 1 && visitors.length) return { type: 'visitor', visitor: visitors[0] };
+  // The very first reward is something for your home, so it starts to feel like yours.
+  if (log.count === 1 && havenItems.length) return { type: 'item', item: pickOne(havenItems) };
+  // (Visitors are resting for now; they'll be back in a later realm.)
   const avail = {
     treat: WEIGHTS.treat,
     haven: havenItems.length ? WEIGHTS.haven : 0,
-    visitor: visitors.length ? WEIGHTS.visitor : 0,
     treasure: treasures.length ? WEIGHTS.treasure : 0,
   };
   if (avail[log.last]) avail[log.last] *= 0.2; // rarely the same kind twice in a row
@@ -85,7 +86,6 @@ function pickGift() {
   for (const [k, w] of Object.entries(avail)) if ((r -= w) <= 0) { kind = k; break; }
   if (kind === 'haven') return { type: 'item', item: pickOne(havenItems) };
   if (kind === 'treasure') return { type: 'item', item: pickOne(treasures) };
-  if (kind === 'visitor') return { type: 'visitor', visitor: visitors[0] };
   return { type: 'treat', treat: pickOne(TREATS) };
 }
 
@@ -117,7 +117,7 @@ export function rewardQuest(q, { focusMinutes = 0 } = {}) {
   if (q.type === 'focus') gain += Math.min(2, Math.floor((focusMinutes || 0) / 25));
   if (q.steps.length >= 3) gain += 1;
   // While a hatchling is still settling in there's no egg to warm.
-  const hasEgg = state.hatch.phase !== 'raising';
+  const hasEgg = eggHere();
   if (hasEgg && !wasReady) state.hatch.warmth = Math.min(eggNeed(), state.hatch.warmth + gain);
   const gift = pickGift();
   giveGift(gift);

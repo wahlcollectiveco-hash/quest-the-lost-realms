@@ -21,7 +21,7 @@ function weighted(list) {
 export function createMoments({
   world, director, abilities, bubbles, sparkle, haven,
   getCompanion, getWhere, isBusy, walkable,
-  onStartFocus, onNewQuest, onFavor,
+  onStartFocus, onNewQuest, onFavor, news = () => null,
 }) {
   const v = new THREE.Vector3();
   // Where the bubble floats: just above the dragon's head.
@@ -128,8 +128,9 @@ export function createMoments({
 
   function hint() {
     if (getWhere() !== 'haven') return null;
-    if (eggReady()) return HINTS.eggReady;
-    if (state.found['mossy-key'] && !state.chestOpened) return HINTS.chestKey;
+    // something waiting in Dragon Haven
+    const n = news();
+    if (n) return n;
     // what they're wishing for, or how close the egg is (now and then)
     if (wishText()) return wishText();
     if (eggInsight() && Math.random() < 0.4) return eggInsight();

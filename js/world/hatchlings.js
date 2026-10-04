@@ -68,7 +68,8 @@ function makeLantern() {
 
 export function createHatchlings(world, haven, { say, isNestling = () => false, onTap }) {
   const { scene } = world;
-  const bigNest = haven.anchors.nest;
+  // where a new baby sleeps at home, by the cottage, until it has a nest
+  const bigNest = haven.anchors.nestling;
   const cottage = new V(-5.6, 0, -2.8);
   const babies = new Map();
 
@@ -129,13 +130,13 @@ export function createHatchlings(world, haven, { say, isNestling = () => false, 
     }
   }
 
-  function spawn(creature, { pop = false } = {}) {
+  function spawn(creature, { pop = false, at = null } = {}) {
     const d = createDragon(hatchlingDef(creature));
-    const b = { d, creature, target: null, wait: 2 + Math.random() * 4, nestObj: null, giftObj: null, napping: 0, moving: false };
+    const b = { d, creature, target: null, wait: 2 + Math.random() * 4, nestObj: null, giftObj: null, napping: 0, moving: false, away: !!at };
     babies.set(creature.id, b);
     if (creature.nest != null) addNest(b, false);
     addGift(b, false);
-    const start = isNestling(creature.id) || pop ? new V(bigNest.x, 0.22, bigNest.z + 0.05) : wanderSpot(b);
+    const start = at ? at.clone() : isNestling(creature.id) || pop ? new V(bigNest.x, 0, bigNest.z + 0.05) : wanderSpot(b);
     d.root.position.copy(start);
     d.root.rotation.y = pop ? 0.4 : Math.random() * TAU;
     scene.add(d.root);
@@ -171,10 +172,10 @@ export function createHatchlings(world, haven, { say, isNestling = () => false, 
       const r = b.d.root;
       if (b.giftObj?.userData.spin) b.giftObj.userData.spin.rotation.y = t * 0.8;
       if (b.giftObj?.userData.glow) b.giftObj.userData.glow.material.emissiveIntensity = 1.4 + 0.4 * Math.sin(t * 2.1);
-      if (b.moving) continue;
+      if (b.moving || b.away) continue; // away: in Dragon Haven, or flying home
       // A brand-new baby stays curled up in the big nest, dozing and peeking out.
       if (!b.nestObj && isNestling(b.creature.id)) {
-        r.position.set(bigNest.x, 0.22, bigNest.z + 0.05);
+        r.position.lerp(new V(bigNest.x, 0, bigNest.z + 0.05), 1 - Math.exp(-dt * 1.5));
         const awake = Math.sin(t * 0.21 + 1) > 0.55;
         b.d.setPose(awake ? { lie: 0.5 } : { lie: 1, sleep: 1 });
         continue;
@@ -220,6 +221,8 @@ export function createHatchlings(world, haven, { say, isNestling = () => false, 
     spawn,
     rename(id, name) { const b = babies.get(id); if (b) b.creature = { ...b.creature, name }; },
     get(id) { return babies.get(id); },
+    // While away (just hatched in Dragon Haven, or flying home) the baby is moved by someone else.
+    setAway(id, v) { const b = babies.get(id); if (b) { b.away = v; if (!v) { b.target = null; b.wait = 2; } } },
     position(id) { return babies.get(id)?.d.root.position.clone() ?? bigNest.clone(); },
     // Where this baby's own nest is (or will be).
     nestSpot(creature) { return slotFor(creature); },

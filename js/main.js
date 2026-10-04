@@ -1,16 +1,16 @@
-// App flow: Welcome → Choose a dragon → Dragon Haven.
+// App flow: Welcome → Choose a dragon → your home island.
+// Across the sky is Dragon Haven: the Ancient Door, the star egg and Quill.
 import * as THREE from 'three';
 import { createWorld, easeOut } from './world/scene.js';
 import { buildHaven, VALE_CENTER } from './world/haven.js';
-import { buildVale } from './world/vale.js';
+import { buildVale, SANCTUARY } from './world/vale.js';
 import { openDoorPanel } from './ui/door.js';
 import { createStory } from './story.js';
 import { audio, sfx } from './audio.js';
 import { applySettings, openSettings, settings } from './ui/settings.js';
 import { runTour, rectOf } from './ui/tour.js';
 import {
-  RUNES, STONES, litRunes, allLit, valeUnlocked, stoneState, questsUntilStone, wakeStone, markVisited,
-  findHidden, markDoorOpened,
+  litRunes, starReady, valeUnlocked, markVisited, findHidden,
 } from './realm.js';
 import { createDragon } from './world/dragon.js';
 import { createActivityDirector } from './world/activities.js';
@@ -26,7 +26,7 @@ import {
   rewardQuest, eggFraction, eggPalette, eggReady, eggStage, eggNeed, hatchEgg, foundOf, openChest, grant, placeItem, storeItem,
 } from './rewards.js';
 import { $, $$, esc, say, tell, ask, celebrate, hideCelebrate, pauseTells, resumeTells } from './ui/common.js';
-import { GIFTS, raising, wishBaby, wishText, eggInsight, wishProgress, startRaising } from './wishes.js';
+import { GIFTS, raising, wishText, eggInsight, wishProgress, startRaising, hasEgg, settleOldSave } from './wishes.js';
 import { createAbilities, ABILITY_LINES } from './world/abilities.js';
 import { createFlowerTrail } from './world/trail.js';
 import { havenWalkable } from './world/haven.js';
@@ -34,13 +34,12 @@ import { valeWalkable } from './world/vale.js';
 import { prefersReducedMotion } from './ui/settings.js';
 import { createBubbles } from './ui/bubble.js';
 import { createMoments } from './moments.js';
-import { createVisitors } from './world/visitors.js';
 import { createCare } from './care.js';
 import { buildSkyRoute } from './world/sky.js';
-import { visitorById } from './data/life.js';
+import { STAR_MEMORIES } from './data/life.js';
 
 const world = createWorld($('#world'));
-const haven = buildHaven(world, { say });
+const haven = buildHaven(world, { say, sanctuary: SANCTUARY });
 const vale = buildVale(world);
 const abilities = createAbilities(world);
 // Each dragon leaves a little trail where they walk and rest: Pebble flowers,
@@ -81,13 +80,13 @@ const hatchlings = createHatchlings(world, haven, {
   isNestling: (id) => raising() && state.wish.creatureId === id,
 });
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-const visitors = createVisitors(world, { say });
 buildSkyRoute(world, new THREE.Vector3(0, 2, 0), VALE_CENTER.clone().add(new THREE.Vector3(0, 2, 0)));
 
 // Thought bubbles, and what happens when you tap your dragon.
 const bubbles = createBubbles(world);
 const moments = createMoments({
   world, director, abilities, bubbles, haven,
+  news: () => havenNews(),
   sparkle: garden.sparkle,
   getCompanion: () => companion,
   getWhere: () => where,
@@ -97,26 +96,26 @@ const moments = createMoments({
   onNewQuest: () => $('#new-quest').click(),
   // Helping your dragon warms the egg a little (once a day).
   onFavor() {
-    if (eggReady() || hatching || raising()) return;
+    if (eggReady() || hatching || !hasEgg()) return;
     state.hatch.warmth = Math.min(eggNeed(), state.hatch.warmth + 1);
     save();
     haven.egg.setLook(eggPalette().egg, eggFraction());
-    haven.egg.swell(3);
-    say(eggReady() ? 'The egg felt that kindness. It’s ready to hatch!' : 'The egg felt that kindness, and glows a little warmer.', 4600);
+    say(eggReady() ? 'Far away in Dragon Haven, the star egg felt that kindness. It’s ready to hatch!' : 'Far away in Dragon Haven, the star egg feels a little warmer.', 4600);
   },
 });
 
+// Saves from before the move to Dragon Haven: one egg per realm now.
+settleOldSave();
+
 // Bring back everything discovered so far.
 for (const id of Object.keys(state.found)) if (inHaven(byId(id) || {}) && !(state.unplaced || []).includes(id)) garden.place(id);
-for (const id of state.visitors || []) visitors.spawn(id);
 garden.setTreasures(foundOf('treasure').length);
 for (const c of state.creatures) hatchlings.spawn(c);
 haven.egg.setLook(eggPalette().egg, eggFraction());
-if (raising()) haven.egg.setVisible(false); // a baby is settling in; the next egg comes later
+if (!hasEgg()) haven.egg.setVisible(false); // the star egg has hatched; the next egg comes from another realm
 if (state.chestOpened) haven.chest.setOpen(true);
 if (state.realm.hidden.grotto) vale.revealCrystals(false);
 if (state.realm.hidden.glade) vale.openGlade(false);
-STONES.forEach((_, i) => vale.setStone(i, stoneState(i)));
 
 // Camera views. Distance grows on narrow screens so things still fit.
 const VIEWS = {
@@ -330,14 +329,14 @@ function enterHaven(flyIn = true) {
   world.onTap(companion.root, () => moments.tap());
   applyMeadow();
   care.render();
-  $('#haven-sub').textContent = `Verdant Vale · with ${def.name}`;
+  $('#haven-sub').textContent = `${def.name}’s home`;
   document.body.dataset.dragonName = def.name;
   if (!questUIReady) {
     questUIReady = true;
     questUI = initQuestUI({
       onComplete,
       onStartFocus: (id) => focus.begin(id),
-      onHatch: () => hatchSequence(),
+      onHatch: () => (where === 'vale' ? hatchSequence() : travelToVale().then(hatchSequence)),
       onEnergy(level) {
         const n = DRAGONS[state.dragon].name;
         const line = {
@@ -455,7 +454,7 @@ async function showRewards(items, { zoom = true } = {}) {
   garden.setTreasures(foundOf('treasure').length);
 }
 
-// Rewards found outside of finishing a Quest (the chest, hidden spots in the Vale).
+// Rewards found outside of finishing a Quest (the chest, hidden spots in Dragon Haven).
 async function reveal(items) {
   if (!items.length) return;
   if (where !== 'haven') return showRewards(items, { zoom: false });
@@ -512,21 +511,7 @@ async function completionClip(q, r, prefix) {
     companion.react(how);
     await cwait(2200);
   }
-  // 2. the egg, only when there's something worth seeing (ready, a new stage, or now and then)
-  if (r?.warmed) {
-    const fr = eggFraction();
-    const stage = (x) => (x >= 1 ? 3 : x >= 0.6 ? 2 : x >= 0.3 ? 1 : 0);
-    const newStage = stage(fr) > stage(fr - r.gain / eggNeed());
-    haven.egg.setLook(eggPalette().egg, fr);
-    if (r.nowReady || newStage || Math.random() < 0.25) {
-      const e = haven.egg.worldPosition();
-      await cfly([e.x - 1.6, 1.4, e.z + 2.4], [e.x, 0.55, e.z], 1.6);
-      haven.egg.swell(clipSkip ? 0.3 : 2.6);
-      garden.sparkle(e, 14);
-      if (r.nowReady) say('The egg is wiggling. It’s ready to hatch!', 3600);
-      await cwait(2400);
-    }
-  }
+  if (r?.warmed) haven.egg.setLook(eggPalette().egg, eggFraction());
   hideCelebrate();
   // 3. the reward, in action
   if (r?.gift) await showGift(r.gift);
@@ -569,24 +554,6 @@ async function showGift(g, { zoom = true } = {}) {
     });
     care.render();
     return;
-  }
-  if (g.type === 'visitor') {
-    const v = g.visitor;
-    const home = visitors.homeOf(v.id);
-    if (cinematic) await cfly(...lookAtSpot(home, 2.6, true), 1.8);
-    visitors.spawn(v.id, { arrive: true });
-    visitors.face(v.id, world.camera.position.x, world.camera.position.z);
-    garden.sparkle(home, 26);
-    sfx.discovery();
-    if (cinematic) {
-      await cwait(900);
-      await Promise.race([bubbles.show(() => (visitors.position(v.id) || home).clone().add(new THREE.Vector3(0, 0.9, 0)), { name: v.name, text: v.hello }), cwait(6000)]);
-      bubbles.hide();
-    }
-    await collection.showCard({
-      icon: v.icon, eyebrow: 'Someone new moved in!', title: `${v.name} the ${v.species}`,
-      desc: cinematic ? 'They’ve made themselves at home. Tap them to say hello.' : v.hello, button: 'Welcome!',
-    });
   }
 }
 
@@ -664,11 +631,8 @@ function onComplete(q, { focusMinutes = 0, prefix = '' } = {}) {
     companion?.react('celebrate');
     if (companion) garden.sparkle(companion.root.position, 20);
     let eggLine = '';
-    if (r?.warmed) {
-      haven.egg.setLook(eggPalette().egg, eggFraction());
-      haven.egg.pulse();
-      eggLine = r.nowReady ? ' The egg is ready to hatch!' : ' The egg glows a little warmer.';
-    }
+    if (r?.warmed) haven.egg.setLook(eggPalette().egg, eggFraction());
+    if (r?.nowReady) eggLine = ' The star egg is ready to hatch!';
     celebrate(q.title, prefix + completionLine() + eggLine, 4200);
     if (r?.gift) setTimeout(() => showGift(r.gift, { zoom: false }).then(() => { refreshDoor(true); placeNext(); }), 2600);
     else refreshDoor(true);
@@ -677,8 +641,8 @@ function onComplete(q, { focusMinutes = 0, prefix = '' } = {}) {
   }
   clipChain = clipChain.then(() => completionClip(q, r, prefix)).catch((e) => { console.error(e); endClip(); });
   queueWish(granted);
-  // The Quest that finishes warming the egg leads straight into the hatching.
-  if (r?.nowReady) clipChain = clipChain.then(() => whenCalm(() => hatchSequence()));
+  // The egg is in Dragon Haven: when it's ready, say so (and you can fly over).
+  if (r?.nowReady) clipChain = clipChain.then(() => whenCalm(() => (where === 'vale' ? hatchSequence() : tell('The star egg is ready to hatch! Fly to Dragon Haven to be there when it does.'))));
 }
 
 // ---- Wishes coming true ----
@@ -687,8 +651,7 @@ function onComplete(q, { focusMinutes = 0, prefix = '' } = {}) {
 function applyWish(g) {
   const c = state.creatures.find((x) => x.id === g.creatureId);
   if (g.step === 'nest') hatchlings.buildNest(c);
-  else if (g.step === 'gift') hatchlings.giveGift(c);
-  else haven.egg.appear(eggPalette().egg);
+  else hatchlings.giveGift(c);
 }
 function nextWishNote() {
   const next = wishText();
@@ -704,7 +667,6 @@ function queueWish(g) {
       tell({
         nest: `${baby} has a nest of their own now, in the meadow by the cottage.`,
         gift: GIFTS[state.dragon].given(baby),
-        egg: 'A new egg has appeared in the big nest!',
       }[g.step]);
       nextWishNote();
     });
@@ -756,21 +718,6 @@ async function wishClip(g, baby) {
     await cwait(900);
     say(gift.given(baby), 4800);
     await cwait(4600);
-  } else {
-    const e = haven.anchors.nest;
-    celebrate('Something in the nest…', '', 0, 'A wish come true');
-    // your dragon comes to watch from the far side, clear of the camera
-    const walk = director.visit(companion, new THREE.Vector3(e.x + 1.8, 0, e.z + 0.3), e);
-    await Promise.race([walk, cwait(4500)]);
-    await cfly([e.x - 1.9, 1.6, e.z + 2.9], [e.x, 0.55, e.z], 2.2);
-    haven.egg.swell(clipSkip ? 0.3 : 3.4);
-    say('The big nest begins to glow…', 3600);
-    await cwait(2800);
-    sfx.hatch();
-    await haven.egg.appear(eggPalette().egg);
-    garden.sparkle(new THREE.Vector3(e.x, 0.5, e.z), 40);
-    say('A new egg!', 3600);
-    await cwait(3600);
   }
   hideCelebrate();
   endClip();
@@ -790,27 +737,26 @@ function showItem(id) {
 const collection = createCollection({
   onReplay: (id) => story.replay(id),
   getDragonName: () => DRAGONS[state.dragon]?.name || 'Your dragon',
-  onHatch: () => hatchSequence(),
+  onHatch: () => (where === 'vale' ? hatchSequence() : travelToVale().then(hatchSequence)),
   onShowItem: showItem,
   onPlace: (id) => { if (document.body.dataset.screen === 'haven' && where === 'haven') startPlacing(id); },
 });
 $('#collection-btn').addEventListener('click', () => collection.open(eggReady() ? 'eggs' : undefined));
 
 world.onTap(haven.nest, () => {
-  if (where !== 'haven' || busy) return;
-  if (raising()) {
-    const b = wishBaby();
-    const inBigNest = b && b.nest == null;
-    return say(inBigNest ? `${b.name} is curled up in the big nest, fast asleep.` : 'The big nest is empty for now. Something tells you it won’t be for long.', 4500);
+  if (where !== 'vale' || busy) return;
+  if (!haven.egg.isVisible()) {
+    const b = state.creatures[0];
+    return say(b ? `The nest where ${b.name} hatched. It’s empty now, and still a little warm.` : 'An empty nest.', 4500);
   }
-  if (story.pending('mysterious-egg')) return story.play('mysterious-egg');
+  if (story.pending('egg-and-door')) return story.play('egg-and-door');
   if (eggReady()) return hatchSequence();
   haven.egg.wobble();
-  say(`${eggStage()} The shell’s symbols match the ones on the Ancient Door.`, 4500);
+  say(`${eggStage()} A star is carved into its shell, just like the one on the Door.`, 4800);
 });
 
 world.onTap(haven.chest.object, () => {
-  if (where !== 'haven') return;
+  if (where !== 'vale' || busy) return;
   if (state.chestOpened) return say('The old chest stands open. Its treasures are safe in your collection.');
   if (!state.found['mossy-key']) {
     haven.chest.jiggle();
@@ -833,30 +779,28 @@ function refreshDoor(announce = true) {
   const fresh = lit.map((v, i) => v && !lastLit[i]).map((v, i) => (v ? i : -1)).filter((i) => i >= 0);
   lastLit = lit;
   haven.door.setLit(lit);
-  STONES.forEach((_, i) => vale.setStone(i, stoneState(i)));
   if (!fresh.length || !announce) return;
   haven.door.pulse();
-  const msg = allLit()
-    ? 'All eight symbols on the Ancient Door are glowing. The Door is awake! Tap it to see.'
-    : `A symbol on the Ancient Door just woke: “${RUNES[fresh[fresh.length - 1]].name}.” Quill in Verdant Vale can tell you what it means. Tap the Door to see what wakes next.`;
-  whenCalm(() => tell(msg));
+  whenCalm(() => tell(state.realm.doorOpened
+    ? 'The Star on the Ancient Door is glowing.'
+    : 'The Star on the Ancient Door is glowing! Fly to Dragon Haven and tap the Door.'));
 }
 
 function showDoorPanel() {
   haven.door.pulse();
-  openDoorPanel({ onOpen: openDoorSequence, onVale: travelToVale });
+  openDoorPanel({ onOpen: openDoorSequence, onVale: travelToVale, here: where === 'vale' });
 }
 world.onTap(haven.door.object, () => {
-  if (where !== 'haven' || busy) return;
-  if (story.pending('door-waking')) return story.play('door-waking');
+  if (where !== 'vale' || busy) return;
   showDoorPanel();
 });
+world.onTap(haven.signpost, () => { if (where === 'haven' && !busy) travelToVale(); });
 
 function openDoorSequence() {
   return story.play('new-realm');
 }
 
-// ---- Traveling between the Haven and Verdant Vale ----
+// ---- Flying between home and Dragon Haven ----
 let where = 'haven';
 let busy = false;
 const HAVEN_CENTER = new THREE.Vector3(0, 0, 0);
@@ -873,9 +817,18 @@ world.addUpdater((t, dt) => {
   world.controls.target.lerp(d.position.clone().addScaledVector(fwd, 3).add(new THREE.Vector3(0, 0.8, 0)), k);
   world.camera.lookAt(world.controls.target);
   chase.stiff = Math.min(3.2, chase.stiff + dt * 1.2); // ease into the chase
+  // a hatchling flying home with you keeps close, just behind and to the side
+  if (chase.baby) {
+    const b = chase.baby.d.root;
+    const side = new THREE.Vector3(fwd.z, 0, -fwd.x);
+    const spot = d.position.clone().addScaledVector(fwd, -1.6).addScaledVector(side, 1.3).add(new THREE.Vector3(0, 0.5 + Math.sin(t * 3) * 0.15, 0));
+    b.position.lerp(spot, 1 - Math.exp(-dt * 4));
+    b.rotation.y = d.rotation.y;
+  }
 });
 async function flyAlong(trip, lightFocus, bounds, radius) {
   chase = { stiff: 0.4 };
+  updateNews();
   sfx.whoosh();
   // halfway there, the light moves to where you're going
   setTimeout(() => { haven.setLightFocus(lightFocus); world.setBounds(bounds, radius); }, 3500);
@@ -885,7 +838,7 @@ async function flyAlong(trip, lightFocus, bounds, radius) {
 
 async function travelToVale() {
   if (busy || where === 'vale' || !companion) return;
-  if (!valeUnlocked()) return say('The path to the Vale is still misty. Finish a Quest to clear it.', 4200);
+  if (!valeUnlocked()) return;
   busy = true;
   collection.hideDiscovery();
   questUI?.setSheet('peek');
@@ -903,31 +856,41 @@ async function travelToVale() {
   busy = false;
   const first = markVisited();
   const n = DRAGONS[state.dragon].name;
-  if (first) tell(`Welcome to Verdant Vale! Things are hidden here. Tap anything that looks interesting, and double-tap the ground to send ${n} walking.`);
-  else say(`${n} is happy to be back in Verdant Vale.`);
+  if (first) tell('Welcome to Dragon Haven! The Ancient Door stands here, and Quill keeps the old stories in the ruins. Tap anything that looks interesting.');
+  else say(`${n} is happy to be back in Dragon Haven.`);
   refreshDoor(true);
+  story.check();
+  updateNews();
 }
 
-async function returnToHaven() {
+// `baby`: a hatchling coming home with you for the first time.
+async function returnToHaven({ baby = null } = {}) {
   if (busy || where !== 'vale') return;
   busy = true;
   setScreen('travel');
   world.controls.enabled = false;
   audio.setLocation('haven');
   const v = view('haven');
-  await flyAlong(director.travel(companion, haven.anchors.home), HAVEN_CENTER, HAVEN_CENTER, 8);
+  const b = baby && hatchlings.get(baby);
+  if (b) b.d.setPose({ fly: 1 });
+  const trip = director.travel(companion, haven.anchors.home);
+  const fly = flyAlong(trip, HAVEN_CENTER, HAVEN_CENTER, 8);
+  if (chase && b) chase.baby = b;
+  await fly;
+  if (b) { b.d.setPose({}); hatchlings.setAway(baby, false); } // settles in by the cottage
   await world.flyTo(v.pos, v.target, 2.4);
   where = 'haven';
   story.setLocation();
   setScreen('haven');
   world.controls.enabled = true;
   busy = false;
-  say('Home again. Your Quests are right where you left them.', 3600);
+  if (!b) say('Home again. Your Quests are right where you left them.', 3600);
+  updateNews();
 }
 $('#vale-btn').addEventListener('click', travelToVale);
-$('#return-btn').addEventListener('click', returnToHaven);
+$('#return-btn').addEventListener('click', () => returnToHaven());
 
-// ---- Exploring the Vale ----
+// ---- Exploring Dragon Haven ----
 function valeTap(obj, spotName, lookAt, fn) {
   world.onTap(obj, () => {
     if (where !== 'vale' || busy) return;
@@ -948,7 +911,7 @@ valeTap(vale.targets.waterfall, 'waterfall', vale.world('waterfall'), async () =
     await vale.revealCrystals();
     grantAndReveal('vale-crystal', 600);
   } else {
-    say('The great falls of Verdant Vale. Crystals glow softly in the grotto behind the water.');
+    say('The great falls of Dragon Haven. Crystals glow softly in the grotto behind the water.');
   }
 });
 valeTap(vale.targets.hollow, 'hollow', vale.world('hollow'), () => {
@@ -977,66 +940,54 @@ valeTap(vale.targets.mural, 'mural', vale.world('mural'), () => {
   }
 });
 valeTap(vale.targets.pool, 'waterfall', vale.world('waterfall'), () => say('The pool is cold and clear, and very, very deep.'));
-vale.targets.stones.forEach((obj, i) => {
-  valeTap(obj, `stone${i}`, obj.getWorldPosition(new THREE.Vector3()), async () => {
-    const st = stoneState(i);
-    const name = STONES[i].name;
-    if (st === 'awake') return say(`The ${name} glows steadily, humming with the Door.`);
-    if (st === 'dormant') {
-      const k = questsUntilStone(i);
-      return tell(`The ${name} is still asleep. It will wake up after you finish ${k} more ${k === 1 ? 'Quest' : 'Quests'}.`);
-    }
-    wakeStone(i);
-    say(`The ${name} awakens!`, 2600);
-    companion?.react('celebrate');
-    sfx.moment();
-    await vale.awakenStone(i);
-    const before = litRunes().filter(Boolean).length;
-    refreshDoor(false);
-    haven.door.pulse();
-    const woke = litRunes().filter(Boolean).length > before;
-    tell(allLit()
-      ? 'Back in the Haven, the last symbol on the Ancient Door just woke. The Door is awake! Go home and tap it.'
-      : woke
-        ? 'Back in the Haven, a symbol on the Ancient Door just woke. Ask Quill what it means!'
-        : `The ${name} is awake. Its symbol on the Door will light when its turn comes.`);
-  });
-});
-
-// ---- Story Moments and the side characters ----
+// ---- Story Moments and Quill ----
 const story = createStory({
   world,
   haven,
-  vale,
   director,
   getCompanion: () => companion,
   getWhere: () => where,
-  say,
   tell,
   whenCalm,
-  bubbles,
-  overHead: moments.overHead,
-  sparkle: garden.sparkle,
   onBegin(id) {
-    id === 'door-waking' || id === 'new-realm' ? sfx.door() : sfx.moment();
+    id === 'new-realm' ? sfx.door() : sfx.moment();
     busy = true;
     collection.hideDiscovery();
     setScreen('story');
     world.controls.enabled = false;
   },
   onEnd() {
-    setScreen('haven');
+    setScreen(where);
     world.controls.enabled = true;
-    goTo('haven', 1.8);
-    director.goHome(companion);
+    goTo(where, 1.8);
+    if (where === 'haven') director.goHome(companion);
     busy = false;
+    refreshDoor(true);
+    updateNews();
   },
 });
-subscribe(() => story.check());
+subscribe(() => { story.check(); updateNews(); });
+
+// A small glowing dot on the Dragon Haven button when something is waiting
+// there: the egg is ready, Quill has news, the egg's moment, the Door or the chest.
+function havenNews() {
+  if (!state.realm.visited) return 'There’s an egg waiting in Dragon Haven. Shall we fly over and see?';
+  if (eggReady()) return 'The star egg is ready to hatch! Let’s fly to Dragon Haven.';
+  if (story.pending('egg-and-door')) return 'Let’s go and look at the egg in Dragon Haven.';
+  if (starReady() && !state.realm.doorOpened) return 'The Star on the Door is glowing! Let’s fly to Dragon Haven.';
+  if (state.found['mossy-key'] && !state.chestOpened) return 'We have the Mossy Key! Let’s go and open the chest in Dragon Haven.';
+  if (story.quillHasStory()) return 'I think Quill has something new to tell us. Shall we fly to Dragon Haven?';
+  return null;
+}
+function updateNews() {
+  $('#vale-btn').classList.toggle('has-news', where === 'haven' && !!havenNews());
+}
 
 async function hatchSequence() {
-  if (hatching || !eggReady() || !companion || where !== 'haven') return;
+  if (hatching || !eggReady() || !companion) return;
+  if (where !== 'vale') return tell('The star egg is ready to hatch! Fly to Dragon Haven to be there when it does.');
   hatching = true;
+  busy = true;
   collection.hideDiscovery();
   setScreen('hatch');
   world.controls.enabled = false;
@@ -1044,29 +995,31 @@ async function hatchSequence() {
   const e = haven.egg.worldPosition();
   companion.faceTowards(e.x, e.z);
   // Unhurried, and each bit of text waits for a tap, so nothing is missed.
-  await world.flyTo([e.x - 2.2, 2.0, e.z + 3.0], [e.x, 0.6, e.z], 2.4);
+  await world.flyTo([e.x - 2.2, e.y + 1.6, e.z + 3.0], [e.x, e.y + 0.15, e.z], 2.4);
   haven.egg.wobble();
-  await ask('The egg is wiggling… it’s about to hatch!', 'Watch');
+  await ask('The star egg is wiggling… it’s about to hatch!', 'Watch');
   await haven.egg.shake(4.2);
   const c = hatchEgg();
-  startRaising(c); // no new egg yet: this little one grows up a bit first
+  startRaising(c);
   haven.egg.burst();
   haven.egg.setLook(eggPalette().egg, 0); // the nest's warm glow settles
   sfx.hatch();
   garden.sparkle(e, 60);
-  hatchlings.spawn(c, { pop: true });
+  hatchlings.spawn(c, { pop: true, at: new THREE.Vector3(e.x, VALE_CENTER.y + 0.2, e.z) });
   companion.react('celebrate');
   await wait(3200);
   await ask('A tiny dragon tumbles out of the shell, blinking at the world for the first time.');
   const name = await collection.showHatchling(c);
   hatchlings.rename(c.id, name);
   await wait(600);
-  await ask(`${name} curls up in the big nest, where it’s warm. There’s no new egg just yet. First, ${name} needs a little looking after.`);
+  // What they remember from inside the shell: the first clue to where they came from.
+  await ask(`${name} looks up at you. “${STAR_MEMORIES[0]}”`);
+  await ask(`“${STAR_MEMORIES[1]}”`);
+  await ask(`${name} wants to see your home.`, 'Fly home together');
   refreshDoor(true);
-  setScreen('haven');
-  world.controls.enabled = true;
-  goTo('haven', 2.2);
   hatching = false;
+  busy = false;
+  await returnToHaven({ baby: c.id });
   nextWishNote();
   flushCalm(); // news that arrived during the hatching comes after it
   setTimeout(placeNext, 3000); // and anything waiting to be placed
@@ -1146,16 +1099,12 @@ async function startTour() {
   touring = true;
   const name = DRAGONS[state.dragon].name;
   questUI?.setSheet('half');
-  const eggRect = () => {
-    const p = world.toScreen(haven.egg.worldPosition());
-    return p.visible ? { x: p.x - 44, y: p.y - 50, w: 88, h: 88 } : null;
-  };
   await runTour([
-    { title: `Welcome to Dragon Haven`, text: `This is ${name}’s home. It grows and changes as you get things done in your real life.` },
+    { title: 'Welcome home', text: `This is where ${name} lives. It grows and changes as you get things done in your real life.` },
     { title: 'Quests', text: 'Anything you need to do, big or small, is a Quest. Templates save time for things you do again and again.', target: () => rectOf($('#new-quest')) },
     { title: 'Stuck?', text: 'Choose My Next Quest picks one thing for you, based on how much time you have.', target: () => rectOf($('.choose-next')) || rectOf($('#quest-list')) },
-    { title: 'The egg', text: 'Finishing Quests warms the egg and sometimes uncovers treasures. No points, no streaks. Just little surprises.', target: eggRect, round: true },
-    { title: 'Exploring', text: 'Fly to Verdant Vale, see your treasures, and find settings up here.', target: () => rectOf($('#vale-btn'), $('#collection-btn'), $('#menu-btn')) },
+    { title: 'Dragon Haven', text: 'Across the sky is Dragon Haven, where a mysterious egg waits beside the Ancient Door. Fly there any time. A little dot appears here when something new is waiting.', target: () => rectOf($('#vale-btn')) },
+    { title: `How ${name} feels`, text: `See how ${name} is feeling today, and feed, play or nap together. Just for fun.`, target: () => rectOf($('#feel-btn')) },
     { title: 'One rule', text: `This works best when you leave the app and go do the thing. ${name} will be right here when you get back.` },
   ]);
   state.onboarded = true;
@@ -1209,5 +1158,6 @@ setTimeout(hideLoading, 2500); // in case frames are throttled
 
 // Debug handle for local development only.
 story.check();
+updateNews();
 
-if (location.hostname === 'localhost') window.quest = { story, world, director, moments, bubbles, focus, hatchlings, onComplete, visitors, care, garden, startPlacing, garden, haven, vale, state, reveal, hatchSequence, refreshDoor, travelToVale, returnToHaven, openDoorSequence, get companion() { return companion; } };
+if (location.hostname === 'localhost') window.quest = { story, world, director, moments, bubbles, focus, hatchlings, onComplete, care, startPlacing, updateNews, garden, haven, vale, state, reveal, hatchSequence, refreshDoor, travelToVale, returnToHaven, openDoorSequence, get companion() { return companion; } };

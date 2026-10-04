@@ -14,7 +14,6 @@ export const SCENES = {
   ],
   ember: [
     { id: 'campfire', w: 3 },
-    { id: 'chest', w: 2, haven: true },
     { id: 'patrol', w: 2 },
     { id: 'stretch', w: 2 },
     { id: 'showoff', w: 1 },
@@ -24,7 +23,6 @@ export const SCENES = {
     { id: 'clouds', w: 2 },
     { id: 'starbook', w: 2 },
     { id: 'hum', w: 2 },
-    { id: 'door', w: 1, haven: true },
     { id: 'showoff', w: 1 },
   ],
 };

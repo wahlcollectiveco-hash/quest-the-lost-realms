@@ -1,50 +1,42 @@
-// Realm progress: the eight symbols on the Ancient Door and the three rune
-// stones in Verdant Vale. Each symbol lights for a meaningful milestone,
-// never for a score.
+// The realms behind the Ancient Door.
+//
+// The Door has seven symbols, one for each realm. Every egg carries one of
+// them: the egg came from behind the Door, from that symbol's realm. The
+// first egg carries the Star. To wake the Star on the Door (and open the way
+// to the Realm of Stars) you hatch the star egg, piece together the old map,
+// and open the Keeper's chest.
 import { state, save } from './state.js';
 
-export const STONES = [
-  { name: 'Stone of Roots', needs: 3 },
-  { name: 'Stone of Water', needs: 10 },
-  { name: 'Stone of Sky', needs: 20 },
+// Glyph index i is drawn by drawRealm(…, i) in world/haven.js.
+export const REALMS = [
+  { id: 'stars', name: 'The Realm of Stars', symbol: 'The Star' },
+  { id: 'r2', name: null, symbol: 'The Wave' },
+  { id: 'r3', name: null, symbol: 'The Leaf' },
+  { id: 'r4', name: null, symbol: 'The Crescent' },
+  { id: 'r5', name: null, symbol: 'The Flame' },
+  { id: 'r6', name: null, symbol: 'The Spiral' },
+  { id: 'r7', name: null, symbol: 'The Peak' },
 ];
 
 const MAPS = ['map-1', 'map-2', 'map-3', 'map-4'];
 
-// The symbols wake one at a time, in this order, so there's always one
-// clear next step. (A symbol whose milestone is already done lights as soon
-// as its turn comes.) Quill can tell the story of each one.
-export const RUNES = [
-  { name: 'The First Step', hint: 'Finish your first Quest.', lit: (s) => s.stats.completed >= 1 },
-  { name: 'The Vale Remembers', hint: 'Fly to Verdant Vale.', lit: (s) => s.realm.visited },
-  { name: 'Stone of Roots', hint: 'Wake the Stone of Roots in Verdant Vale.', lit: (s) => s.realm.stones[0], stone: 0 },
-  { name: 'A Friend’s Warmth', hint: 'Hatch the egg in the nest.', lit: (s) => s.creatures.length >= 1 },
-  { name: 'Stone of Water', hint: 'Wake the Stone of Water in Verdant Vale.', lit: (s) => s.realm.stones[1], stone: 1 },
-  { name: 'Stone of Sky', hint: 'Wake the Stone of Sky in Verdant Vale.', lit: (s) => s.realm.stones[2], stone: 2 },
-  { name: 'The Keeper’s Promise', hint: 'Find the key to the old chest by the Door, and open it.', lit: (s) => s.chestOpened },
-  { name: 'The Old Map', hint: 'Find all four pieces of the old map.', lit: (s) => MAPS.every((id) => s.found[id]) },
-];
-
-export function litRunes() {
-  let open = true;
-  return RUNES.map((r) => (open = open && !!r.lit(state)));
+// What waking the Star takes, shown as a checklist on the Door.
+export function starSteps() {
+  const maps = MAPS.filter((id) => state.found[id]).length;
+  return [
+    { id: 'hatch', label: 'Hatch the star egg', done: state.creatures.length > 0 },
+    { id: 'map', label: 'Find the four pieces of the old map', done: maps === 4, progress: `${maps} of 4` },
+    { id: 'chest', label: state.found['mossy-key'] ? 'Open the Keeper’s chest with the Mossy Key' : 'Open the Keeper’s chest (it needs a key)', done: state.chestOpened },
+  ];
 }
-// The symbol that wakes next (or -1 when all are lit).
-export const nextRune = () => litRunes().indexOf(false);
-export const allLit = () => litRunes().every(Boolean);
+export const starReady = () => starSteps().every((s) => s.done);
 
-export const valeUnlocked = () => state.stats.completed >= 1;
+// Which Door symbols glow.
+export const litRunes = () => REALMS.map((r, i) => i === 0 && (starReady() || state.realm.doorOpened));
+export const allLit = () => litRunes()[0];
 
-export function stoneState(i) {
-  if (state.realm.stones[i]) return 'awake';
-  return state.stats.completed >= STONES[i].needs ? 'ready' : 'dormant';
-}
-export const questsUntilStone = (i) => Math.max(0, STONES[i].needs - state.stats.completed);
-
-export function wakeStone(i) {
-  state.realm.stones[i] = true;
-  save();
-}
+// Dragon Haven is open from the start: the egg is waiting there.
+export const valeUnlocked = () => true;
 
 export function markVisited() {
   if (state.realm.visited) return false;

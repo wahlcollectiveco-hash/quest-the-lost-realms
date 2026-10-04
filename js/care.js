@@ -136,7 +136,7 @@ export function createCare({ world, director, abilities, getCompanion, getWhere,
     } else if (action === 'explore') {
       maybeDelight('explore', d);
       if (canTravel()) {
-        think('Adventure! To Verdant Vale!', { ms: 2600 });
+        think('Adventure! To Dragon Haven!', { ms: 2600 });
         setTimeout(travelToVale, 1200);
       } else {
         think(getWhere() === 'vale' ? 'Let’s see what’s over here…' : 'Let’s explore every corner of the Haven!', { ms: 3200 });

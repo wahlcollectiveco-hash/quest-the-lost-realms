@@ -1,98 +1,96 @@
-// Story Moments and the three side characters.
-// Moments are short and never interrupt: when one is ready, a soft light
-// marks where to look, and it plays only when you tap. Characters speak in
-// a few lines at a time and reveal the Lost Realms gradually.
+// Story Moments and Quill.
+//
+// Realm 1 has two Story Moments, both in Dragon Haven:
+//   The Egg and the Door — the star on the egg's shell matches the star on
+//     the Ancient Door, so the egg must have come from behind it.
+//   The Realm of Stars — once the Star on the Door wakes, it opens for a
+//     glimpse of the realm the egg came from.
+// Quill keeps the old stories: something new to tell when there is one, and
+// otherwise a calm word (or the whole story so far, if you'd like it again).
 import * as THREE from 'three';
 import { state, save } from './state.js';
-import { eggFraction, eggReady } from './rewards.js';
-import { litRunes, stoneState, STONES, valeUnlocked, markDoorOpened } from './realm.js';
-import { drawRune, VALE_CENTER } from './world/haven.js';
-import { createHistorian, createFox, createLune } from './world/npcs.js';
+import { starReady, markDoorOpened } from './realm.js';
+import { drawRealm, VALE_CENTER } from './world/haven.js';
+import { createHistorian } from './world/npcs.js';
 import { talk, letterbox } from './ui/dialogue.js';
-import { DRAGONS } from './data/dragons.js';
-import { HAZEL_BANTER, HAZEL_TRICK, QUILL_BANTER } from './data/moments.js';
-import { RUNE_STORIES, TREASURE_STORIES } from './data/life.js';
-import { byId } from './data/discoveries.js';
+import { TREASURE_STORIES } from './data/life.js';
 
 const V = THREE.Vector3;
-const MAPS = ['map-1', 'map-2', 'map-3', 'map-4'];
-const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 export const MOMENTS = {
-  'strange-flower': {
-    title: 'The Strange Flower',
-    when: () => state.stats.completed >= 2,
-    announce: 'A little flower on the path to the Door has started to glow…',
+  'egg-and-door': {
+    title: 'The Egg and the Door',
+    when: () => state.realm.visited && state.creatures.length === 0,
   },
-  'mysterious-egg': {
-    title: 'The Mysterious Egg',
-    when: () => state.hatch.phase !== 'raising' && (eggFraction() >= 0.6 || state.creatures.length > 0),
-    announce: 'The symbols on the egg are glowing strangely. Take a closer look?',
-  },
-  'door-waking': {
-    title: 'The Door Stirs',
-    when: () => litRunes().filter(Boolean).length >= 4,
-    announce: 'The Ancient Door is trembling. Something inside it is stirring.',
-  },
-  'new-realm': { title: 'A Glimpse Beyond' },
+  'new-realm': { title: 'The Realm of Stars' },
 };
 export const momentSeen = (id) => !!state.story.seen[id] || (id === 'new-realm' && state.realm.doorOpened);
 
-// ---- What the characters say ----
+// ---- Quill ----
 const QUILL_INTRO = [
-  'Ah. A visitor, and with a young dragon, no less. I am Quill. I keep the old stories. What’s left of them.',
-  'You came from the Haven, didn’t you? From the Door. Come and talk to me whenever you like.',
+  'Ah. A visitor, and a young dragon, no less. I am Quill. I keep the old stories, and I keep an eye on that egg by the Door.',
+  'Come and talk to me whenever you like. When something new turns up, I’ll know what it means. Or I’ll find out.',
 ];
-const QUILL_LORE = [
-  { id: 'q1', when: () => true, lines: ['Long ago, the doors stood open. Dragons flew between the realms like birds between trees.', 'Then the Keepers closed them. I have spent a very long time wondering why.'] },
-  { id: 'q2', when: () => state.realm.stones.some(Boolean) || state.stats.completed >= 3, lines: ['The rune stones here remember the Door’s song. Wake one, and the Door hears it, all the way across the sky.'] },
-  { id: 'q3', when: () => state.creatures.length > 0, lines: ['You have a hatchling now! Eggs from before the closing carry the Door’s symbols.', 'They remember where they came from, even when the rest of us forgot.'] },
-  { id: 'q4', when: () => !!state.found['story-mural'], lines: ['The carvings behind me? Dragons flying through a ring of light. Eight symbols. Just like your Door.'] },
-  { id: 'q5', when: () => MAPS.every((id) => state.found[id]), lines: ['The old map, whole again! See the dotted path? It leads beyond your Door.', 'To a realm of twilight, if my scrolls are right. And they usually are.'] },
-  { id: 'q6', when: () => state.realm.doorOpened, lines: ['You saw it, didn’t you? The twilight realm.', 'Then the Door has chosen you. I have waited a very long time to say that to someone.'] },
-];
-const QUILL_AMBIENT = [
-  'Every great story starts small. Usually with someone doing one small thing.',
-  'Mind the leaning column. It’s been leaning since before I hatched.',
-  'Rest is part of the journey, young one. Even for dragons.',
-  'My eyes are old, but I can still read the stones. They’re in a good mood today.',
-  'Go on, then. The world outside is waiting for you. I’ll be here.',
-];
+const babyName = () => state.creatures[0]?.name || 'The little one';
+const MAPS = ['map-1', 'map-2', 'map-3', 'map-4'];
 
-const HAZEL_INTRO = [
-  'Hi! I’m Hazel. I live nearby, and I visit Verdant Vale almost every day.',
-  'Tap me any time and I’ll tell you what’s worth checking out.',
-];
-const HAZEL_AMBIENT = [
-  'Nothing new to report right now. Finish a Quest and I bet something will change!',
-  'Your dragon has been napping in the sun today. Looks cozy.',
-  'It’s a quiet day in the Vale. The butterflies say hello.',
-  'Have you had some water today? I always forget too.',
-  'Tip: double-tap the ground and your dragon will walk there.',
-];
+// The stories Quill has to tell, in order, once each.
+function storyList() {
+  const maps = MAPS.every((id) => state.found[id]);
+  return [
+    { key: 'egg', when: momentSeen('egg-and-door') || state.creatures.length > 0, lines: [
+      'So you’ve seen it. The star on the shell, and the very same star on the Door.',
+      'Long ago, seven doors joined seven realms, and dragons flew between them like birds between trees. That star belongs to one of them: the Realm of Stars.',
+      'How an egg from there came to be sitting in our nest, after all this time… I truly don’t know. But I mean to find out.',
+    ] },
+    { key: 'hatch', when: state.creatures.length > 0, lines: [
+      `${babyName()} remembers darkness full of tiny lights, and someone humming?`,
+      'Then there’s no doubt. The star-singers of that realm hum to their eggs, so the little ones are never afraid of the dark.',
+      'Somewhere behind that Door, someone is still humming.',
+    ] },
+    { key: 'key', when: !!state.found['mossy-key'], lines: [
+      'The Mossy Key! That’s Keeper’s work, I’d know it anywhere.',
+      'It fits the old chest beside the Door. Go on, try it.',
+    ] },
+    { key: 'map', when: maps, lines: [
+      'The old map is whole again. Look: a dotted path, from here, through the wood, to the Door.',
+      'And beyond the Door, a single star. The map was pointing the way to where your little one came from.',
+    ] },
+    { key: 'chest', when: state.chestOpened, lines: [
+      'You opened the Keeper’s chest. The note inside is a promise: whoever opens it is trusted with the Door.',
+      'It seems the Door has chosen you.',
+    ] },
+    { key: 'ready', when: starReady() && !state.realm.doorOpened, lines: [
+      'Do you see it? The Star on the Door is glowing. I think it’s ready to open.',
+      'Go on. I’ll be right here.',
+    ] },
+    { key: 'opened', when: state.realm.doorOpened, lines: [
+      'You saw it. The Realm of Stars.',
+      'It isn’t time to go through. Not yet. But the Door knows you now, and so do the stars.',
+    ] },
+    ...Object.keys(TREASURE_STORIES).filter((id) => state.found[id]).map((id) => ({ key: `t-${id}`, when: true, lines: TREASURE_STORIES[id] })),
+  ].filter((s) => s.when);
+}
 
-const LUNE_LORE = [
-  { id: 'l1', when: () => true, lines: ['You can see me? How unusual.', 'No matter. I only came to look at the Door.'] },
-  { id: 'l2', when: () => true, lines: ['Seven doors. Your dragon is standing near the first.'] },
-  { id: 'l3', when: () => true, lines: ['Names are doors too. You may call me Lune.'] },
-  { id: 'l4', when: () => state.creatures.length > 0 || eggFraction() > 0.5, lines: ['The egg is listening. So is the Door. So am I.'] },
-  { id: 'l5', when: () => state.realm.doorOpened, lines: ['You’ve seen the twilight. I was born there, I think. Or I will be.'] },
-  { id: 'l6', when: () => true, lines: ['Finish what’s in front of you. Doors open in the strangest order.'] },
-];
-const LUNE_AMBIENT = [
-  'Shh. The stones are dreaming.',
-  'I’ve been here before. Or after. It’s hard to say.',
-  'Your list is shorter than you think.',
-  'Don’t stay too long. The world out there needs you too.',
-  'Look closer at the things you walk past every day.',
-];
+// The story so far, for when you'd like to hear it again.
+function recap() {
+  const lines = ['Long ago, seven doors joined seven realms, and dragons flew between them like birds between trees.'];
+  if (state.found['story-2']) lines.push('Then the Keepers sealed the doors. Not to keep something out, but to keep something safe.');
+  if (momentSeen('egg-and-door') || state.creatures.length) lines.push('One day an egg appeared in our nest, with a star on its shell. The same star as on the Door. It came from the Realm of Stars.');
+  if (state.creatures.length) lines.push(`${babyName()} hatched, and remembers it: darkness full of tiny lights, and someone humming.`);
+  const maps = MAPS.filter((id) => state.found[id]).length;
+  if (maps) lines.push(maps === 4 ? 'The old map is whole, and it shows the way: through the Door, to the stars.' : `Pieces of an old map are turning up. You have ${maps} of 4.`);
+  if (state.realm.doorOpened) lines.push('And the Door has opened, just for a moment, onto the Realm of Stars.');
+  lines.push('And that is where our story is, for now.');
+  return lines;
+}
 
-function glowSprite(color = 'rgba(255,230,160,1)') {
+function glowSprite() {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const g = c.getContext('2d');
   const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  grad.addColorStop(0, color);
+  grad.addColorStop(0, 'rgba(255,230,160,1)');
   grad.addColorStop(0.3, 'rgba(255,230,160,0.55)');
   grad.addColorStop(1, 'rgba(255,220,150,0)');
   g.fillStyle = grad;
@@ -102,206 +100,167 @@ function glowSprite(color = 'rgba(255,230,160,1)') {
   return new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
 }
 
-export function createStory({ world, haven, vale, director, getCompanion, getWhere, say, tell, whenCalm, bubbles, overHead, sparkle, onBegin, onEnd }) {
+// ---- The symbol card: the egg's symbol and the Door's, side by side ----
+function symbolFigure(kind) {
+  const c = document.createElement('canvas');
+  c.width = 220;
+  c.height = 240;
+  const g = c.getContext('2d');
+  g.lineWidth = 4;
+  if (kind === 'egg') {
+    const grad = g.createRadialGradient(95, 90, 10, 110, 130, 120);
+    grad.addColorStop(0, '#fffaf0');
+    grad.addColorStop(1, '#e8dcc2');
+    g.fillStyle = grad;
+    g.beginPath(); g.ellipse(110, 128, 74, 98, 0, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = 'rgba(120,90,40,0.25)';
+    g.stroke();
+    g.strokeStyle = g.fillStyle = '#d9962a';
+    g.shadowColor = '#ffd98a';
+    g.shadowBlur = 14;
+    drawRealm(g, 110, 128, 92, 0);
+  } else {
+    g.fillStyle = '#4a5a60';
+    g.beginPath(); g.moveTo(20, 236); g.lineTo(20, 110); g.arc(110, 110, 90, Math.PI, 0); g.lineTo(200, 236); g.closePath(); g.fill();
+    g.strokeStyle = 'rgba(255,220,150,0.35)';
+    g.beginPath(); g.arc(110, 140, 72, 0, Math.PI * 2); g.stroke();
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2 - Math.PI / 2;
+      const on = i === 0;
+      g.strokeStyle = g.fillStyle = on ? '#ffe3a0' : 'rgba(200,180,140,0.45)';
+      g.shadowColor = '#ffd98a';
+      g.shadowBlur = on ? 16 : 0;
+      drawRealm(g, 110 + Math.cos(a) * 72, 140 + Math.sin(a) * 72, on ? 40 : 26, i);
+    }
+    g.shadowBlur = 0;
+  }
+  return c;
+}
+function symbolCard() {
+  const el = document.createElement('div');
+  el.className = 'symbol-card';
+  el.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(el);
+  return {
+    show(parts) {
+      el.innerHTML = '';
+      const fig = (kind, label) => {
+        const f = document.createElement('figure');
+        f.appendChild(symbolFigure(kind));
+        const cap = document.createElement('figcaption');
+        cap.textContent = label;
+        f.appendChild(cap);
+        el.appendChild(f);
+      };
+      if (parts.includes('egg')) fig('egg', 'On the egg');
+      if (parts.includes('match')) {
+        const eq = document.createElement('span');
+        eq.className = 'symbol-eq';
+        eq.textContent = '=';
+        el.appendChild(eq);
+      }
+      if (parts.includes('door')) fig('door', 'On the Door');
+      el.classList.add('show');
+    },
+    hide() { el.classList.remove('show'); },
+  };
+}
+
+export function createStory({ world, haven, director, getCompanion, getWhere, tell, whenCalm, onBegin, onEnd }) {
   const { scene } = world;
   const S = state.story;
   const comp = () => getCompanion();
+  const card = symbolCard();
 
-  // ---- The flower on the path to the Door ----
-  const flower = new THREE.Group();
-  flower.position.set(1.6, 0, -6.5);
-  const petalMat = new THREE.MeshStandardMaterial({ color: '#fbf6ea', emissive: '#ffd98a', emissiveIntensity: 0, roughness: 0.6 });
-  {
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, 0.55, 5), new THREE.MeshStandardMaterial({ color: '#5e8c3c' }));
-    stem.position.y = 0.27;
-    flower.add(stem);
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2;
-      const p = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), petalMat);
-      p.scale.set(1, 0.4, 0.6);
-      p.position.set(Math.cos(a) * 0.09, 0.56, Math.sin(a) * 0.09);
-      p.rotation.y = -a;
-      flower.add(p);
-    }
-    const c = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), new THREE.MeshStandardMaterial({ color: '#f6d15c', emissive: '#ffcf6a', emissiveIntensity: 0.4 }));
-    c.position.y = 0.58;
-    flower.add(c);
-    flower.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-  }
-  flower.scale.setScalar(1.4);
-  scene.add(flower);
-  let flowerGlow = 0;
-  let flowerTarget = 0;
+  // A soft light over the egg while its moment is waiting.
+  const marker = glowSprite();
+  marker.scale.setScalar(0.9);
+  marker.visible = false;
+  scene.add(marker);
+  world.addUpdater((t) => {
+    if (!marker.visible) return;
+    marker.position.copy(haven.egg.worldPosition()).add(new V(0, 1.0 + 0.12 * Math.sin(t * 2), 0));
+    marker.material.opacity = 0.65 + 0.35 * Math.sin(t * 2.6);
+  });
 
-  // A drifting Door symbol for the flower moment
-  const [runeC, runeG] = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; return [c, c.getContext('2d')]; })();
-  runeG.strokeStyle = runeG.fillStyle = '#fff0c4';
-  runeG.shadowColor = '#ffd98a';
-  runeG.shadowBlur = 14;
-  drawRune(runeG, 64, 64, 80, 5);
-  const runeTex = new THREE.CanvasTexture(runeC);
-  runeTex.colorSpace = THREE.SRGBColorSpace;
-  const runeSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: runeTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-  runeSprite.scale.setScalar(0.7);
-  runeSprite.visible = false;
-  scene.add(runeSprite);
-
-  // Soft markers that show where a moment is waiting
-  const markerPos = {
-    'strange-flower': () => flower.position.clone().add(new V(0, 1.1, 0)),
-    'mysterious-egg': () => haven.egg.worldPosition().add(new V(0, 1.0, 0)),
-    'door-waking': () => haven.door.object.position.clone().add(new V(0, 8.0, 0.4)),
-  };
-  const markers = {};
-  for (const id of Object.keys(markerPos)) {
-    const m = glowSprite();
-    m.scale.setScalar(0.9);
-    m.visible = false;
-    scene.add(m);
-    markers[id] = m;
-  }
-
-  // ---- Characters ----
-  const hazel = createFox();
-  hazel.root.position.set(4.4, 0, -3.0);
-  hazel.root.rotation.y = Math.atan2(2 - 4.4, 16 + 3.0);
-  hazel.root.visible = false;
-  scene.add(hazel.root);
-  world.addUpdater(hazel.update);
-
+  // ---- Quill, in the ruins beside the Door ----
   const quill = createHistorian();
   quill.root.position.copy(VALE_CENTER).add(new V(2.2, 0.08, -6.4));
   quill.faceTowards(VALE_CENTER.x, VALE_CENTER.z + 12);
   scene.add(quill.root);
   world.addUpdater(quill.update);
 
-  const lune = createLune();
-  lune.setFade(0);
-  scene.add(lune.root);
-  world.addUpdater(lune.update);
-  const LUNE_SPOTS = {
-    haven: [[0, 7.3, -9.2], [-5.6, 4.5, -2.8], [-2.2, 0.8, -0.3], [-3.3, 1.0, -7.0], [5.2, 0.7, 1.4], [-8.1, 2.0, 0.3]].map((p) => new V(...p)),
-    vale: [[0, 1.3, 12.4], [-5.6, 3.0, 5.4], [9.4, 3.6, -6.4], [-6.8, 0.8, -6.4], [4, 4.0, -11.4], [-5.2, 3.0, -10.8]].map((p) => new V(...p).add(VALE_CENTER)),
-  };
-  const luneState = { visible: false, where: null, since: 0, gone: 0, base: new V() };
-
-  world.addUpdater((t, dt) => {
-    flowerGlow += (flowerTarget - flowerGlow) * (1 - Math.exp(-dt * 2));
-    petalMat.emissiveIntensity = flowerGlow * (0.8 + 0.3 * Math.sin(t * 2.2));
-    for (const [id, m] of Object.entries(markers)) {
-      if (!m.visible) continue;
-      m.position.copy(markerPos[id]());
-      m.position.y += 0.12 * Math.sin(t * 2);
-      m.material.opacity = 0.65 + 0.35 * Math.sin(t * 2.6);
-    }
-    if (luneState.visible) {
-      lune.root.position.copy(luneState.base).add(new V(Math.sin(t * 0.7) * 0.25, 0, Math.cos(t * 0.5) * 0.2));
-    }
-  });
-
   // ---- Moment state ----
   const pending = (id) => !momentSeen(id) && !!MOMENTS[id].when?.();
+  const quillHasStory = () => storyList().some((s) => !S.heard.quill?.[s.key]);
 
-  // News worth reading waits its turn (after any celebration) and stays until tapped.
-  const announce = (msg) => whenCalm(() => { if (getWhere() === 'haven') tell(msg); });
-
+  let playing = false;
   function check() {
-    for (const id of Object.keys(markers)) {
-      const p = pending(id);
-      markers[id].visible = p && getWhere() === 'haven' && !playing;
-      if (p && !S.announced[id]) {
-        S.announced[id] = true;
-        save();
-        announce(MOMENTS[id].announce);
-      }
-    }
-    flowerTarget = momentSeen('strange-flower') ? 0.35 : pending('strange-flower') ? 1 : 0;
-    // Hazel shows up after your first finished Quest.
-    const hazelHere = state.stats.completed >= 1;
-    if (hazelHere && !hazel.root.visible) {
-      hazel.root.visible = true;
-      if (!S.announced.hazel) {
-        S.announced.hazel = true;
-        save();
-        sparkle(hazel.root.position, 24);
-        announce('A fox is peeking out from the bushes by the stream. Tap her to say hello!');
-      }
+    marker.visible = pending('egg-and-door') && getWhere() === 'vale' && !playing && haven.egg.isVisible();
+    if (pending('egg-and-door') && getWhere() === 'vale' && !S.announced['egg-and-door']) {
+      S.announced['egg-and-door'] = true;
+      save();
+      whenCalm(() => tell('There’s an egg in the nest beside the Ancient Door. Tap it to take a closer look.'));
     }
   }
 
   // ---- Running a moment ----
-  let playing = false;
   let skipping = false;
-  const wait = (ms) => (skipping ? Promise.resolve() : new Promise((r) => setTimeout(r, ms)));
   const d = (sec) => (skipping ? 0.05 : sec);
   const cam = (pos, target, sec) => world.flyTo(pos, target, d(sec));
-  // Story text waits for the reader to tap Next (the old timings are ignored).
+  // Story text waits for the reader to tap Next.
   const text = async (t) => { letterbox.text(t); if (!skipping) await letterbox.next(); };
   const doorPos = () => haven.door.object.position;
+  // The middle of the symbol ring on the Door, and the direction it faces.
+  const doorFacing = () => new V().subVectors(haven.door.front, doorPos()).setY(0).normalize();
+  const ringCentre = () => doorPos().clone().add(new V(0, 3.45, 0)).addScaledVector(doorFacing(), 0.1);
 
   const SCRIPTS = {
-    async 'strange-flower'() {
-      const f = flower.position;
-      director.visit(comp(), new V(f.x - 1.9, 0, f.z + 1.2), f);
-      await cam([f.x - 0.5, 1.0, f.z + 1.9], [f.x - 0.1, 0.75, f.z - 0.6], 2);
-      flowerTarget = 1.6;
-      await text('A small white flower on the path has begun to glow…', 3400);
-      await text('…with the very same light as the Ancient Door.', 3400);
-      const start = f.clone().add(new V(0, 1.0, 0));
-      const end = new V(0, 3.4, -9.1);
-      runeSprite.visible = true;
-      const drift = world.tween(d(2.8), (p) => {
-        runeSprite.position.lerpVectors(start, end, p);
-        runeSprite.position.y += Math.sin(p * Math.PI) * 1.2;
-        runeSprite.scale.setScalar(0.5 + p * 0.8);
-        runeSprite.material.opacity = 1 - Math.max(0, (p - 0.85) / 0.15);
-      });
-      cam([2.6, 3.6, -1.4], [0.4, 2.6, -8], 2.8);
-      letterbox.text('A symbol rises from its petals and drifts toward the Door…');
-      await drift;
-      runeSprite.visible = false;
-      haven.door.pulse();
-      if (!skipping) await letterbox.next();
-      await text('…and settles into the stone, as if it had always belonged there.', 3400);
-    },
-
-    async 'mysterious-egg'() {
+    async 'egg-and-door'() {
       const e = haven.egg.worldPosition();
-      director.visit(comp(), new V(e.x + 1.3, 0, e.z + 1.2), e);
-      await cam([e.x - 1.8, 1.5, e.z + 2.6], [e.x, 0.5, e.z], 2);
+      const hidden = !haven.egg.isVisible();
+      if (hidden) haven.egg.setVisible(true); // replaying after the hatch: a memory of the egg
+      const f = doorFacing();
+      director.visit(comp(), e.clone().addScaledVector(f, 1.6).add(new V(1.5, 0, 0)).setY(e.y - 0.45), e);
+      // 1. the egg, close up, with its one symbol
+      await cam([e.x - 1.2, e.y + 0.7, e.z + 1.7], [e.x, e.y + 0.05, e.z], 2.4);
       haven.egg.pulse();
-      haven.egg.wobble();
-      await text('The symbols on the egg shimmer, one after another…', 3400);
-      await cam([2.4, 3.6, -0.6], [0, 3.2, -9.4], 2.2);
+      card.show(['egg']);
+      await text('Look closely at the egg. A single symbol is carved into its shell: a star.');
+      // 2. the Door, with the same star glowing
+      const c = ringCentre();
+      // framed so the ring sits low on screen, below the symbol card
+      const camPos = c.clone().addScaledVector(f, 10.5).add(new V(0, 0.6, 0));
+      await cam(camPos.toArray(), c.clone().add(new V(0, 1.7, 0)).toArray(), 2.8);
+      haven.door.setFocus(0);
       haven.door.pulse();
-      await text('They match the symbols around the Ancient Door. Exactly.', 3600);
-      await cam([e.x - 1.8, 1.5, e.z + 2.6], [e.x, 0.5, e.z], 2);
+      card.show(['egg', 'door']);
+      await text('Now look at the Ancient Door. Seven symbols sit in a ring, one for each realm behind it. One of them is the very same star.');
+      card.show(['egg', 'match', 'door']);
+      await text('They match. This egg came from behind the Door, from the realm the star belongs to: the Realm of Stars.');
+      // 3. both together
+      card.hide();
+      const mid = e.clone().lerp(doorPos(), 0.5);
+      await cam([mid.x + 6.5, mid.y + 4.2, mid.z + 7.5], [mid.x, mid.y + 1.4, mid.z], 2.6);
       haven.egg.pulse();
-      await text('Whoever is inside has been here before. Long, long ago.', 3600);
-    },
-
-    async 'door-waking'() {
-      director.visit(comp(), haven.door.front, doorPos());
-      await cam([1.8, 3.4, 0.4], [0, 3.3, -9.4], 2.2);
-      const r = haven.door.rumble(d(2.4));
-      await text('The Door trembles. Deep in the stone, something stirs…', 3400);
-      await r;
-      await haven.door.setEyes(true, d(1.4));
-      await text('…and for a heartbeat, it seems to open its eyes.', 3600);
-      await haven.door.setEyes(false, d(1.2));
-      await text('Then it is quiet again. Waking, but not awake. Not yet.', 3600);
+      await text('But the doors have been sealed for a very long time. So how did the egg get all the way here?');
+      await text('Nobody knows. Not yet. Quill might have some ideas.');
+      haven.door.setFocus(-1);
+      if (hidden) haven.egg.setVisible(false);
     },
 
     async 'new-realm'() {
       director.visit(comp(), haven.door.front, doorPos());
-      await cam([2.4, 3.4, 0.8], [0, 3.1, -9.4], 2.2);
+      const c = ringCentre();
+      const f = doorFacing();
+      await cam(c.clone().addScaledVector(f, 8).add(new V(1.2, -0.4, 0)).toArray(), c.toArray(), 2.4);
       const a = haven.door.awaken(d(2.4));
-      await text('All eight symbols blaze with light…', 2600);
+      await text('The Star on the Door blazes with light…');
       await a;
       await haven.door.showGlimpse(d(1.8));
-      await text('Beyond the Door: a twilight realm of silver light and sleeping crystals.', 5200);
-      await text('Somewhere far off, something small and bright is waiting.', 3600);
-      await text('Then, softly, the Door closes. Not yet… but soon.', 3600);
+      await text('Beyond the Door: the Realm of Stars. Tiny lights drift everywhere, like slow snow, and somewhere far off, someone is humming.');
+      if (state.creatures.length) await text(`Back home, ${babyName()} looks up at the sky and chirps, as if they heard it too.`);
+      await text('Then, softly, the Door closes. Not yet… but soon.');
       await haven.door.hideGlimpse(d(1.8));
       markDoorOpened();
     },
@@ -311,7 +270,7 @@ export function createStory({ world, haven, vale, director, getCompanion, getWhe
     if (playing || !SCRIPTS[id]) return;
     playing = true;
     skipping = false;
-    Object.values(markers).forEach((m) => (m.visible = false));
+    marker.visible = false;
     onBegin(id);
     letterbox.on(() => { skipping = true; });
     try {
@@ -320,8 +279,9 @@ export function createStory({ world, haven, vale, director, getCompanion, getWhe
       console.error(e);
     }
     // Leave things tidy if the moment was skipped partway.
-    runeSprite.visible = false;
-    if (id === 'door-waking') haven.door.setEyes(false, 0.05);
+    card.hide();
+    haven.door.setFocus(-1);
+    if (id === 'egg-and-door' && state.creatures.length) haven.egg.setVisible(false);
     if (id === 'new-realm') { haven.door.hideGlimpse(0.05); markDoorOpened(); }
     S.seen[id] = Date.now();
     save();
@@ -331,223 +291,55 @@ export function createStory({ world, haven, vale, director, getCompanion, getWhe
     check();
   }
 
-  // ---- Characters talking ----
-  function nextLore(key, lore) {
-    S.heard[key] ||= {};
-    const l = lore.find((x) => !S.heard[key][x.id] && x.when());
-    if (!l) return null;
-    S.heard[key][l.id] = true;
-    save();
-    return l.lines;
-  }
-
-  // What Hazel does when tapped: the first time she introduces herself;
-  // after that it's a useful hint, or a little scene with your dragon.
-  function hazelLines() {
-    if (!S.met.hazel) { S.met.hazel = true; save(); return HAZEL_INTRO; }
-    const hint = hazelHint();
-    return hint && Math.random() < 0.6 ? [hint] : null;
-  }
-  function hazelHint() {
-    const hints = [
-      [pending('strange-flower'), 'The little white flower on the path to the Door has started glowing. Tap the flower to take a closer look!'],
-      [pending('mysterious-egg'), 'The symbols on your egg are glowing. Tap the egg to see what’s happening.'],
-      [pending('door-waking'), 'The Ancient Door is shaking! Tap the Door to see why.'],
-      [eggReady(), 'Your egg is ready to hatch! Tap the egg in the nest.'],
-      [state.found['mossy-key'] && !state.chestOpened, 'You found the Mossy Key! Tap the old chest next to the Door to open it.'],
-      [!valeUnlocked(), 'Verdant Vale is covered in mist right now. Finish one Quest and the way will open.'],
-      [!state.realm.visited, 'You can visit Verdant Vale now. Tap the mountain button at the top of the screen and your dragon will fly you there.'],
-      [!S.met.quill, 'An old dragon named Quill lives in the ruins in Verdant Vale. Tap Quill to hear stories about the Door.'],
-      [S.met.quill && quillStories().length > 0, 'Quill has a story for you about something new. Fly to Verdant Vale and tap Quill!'],
-      [STONES.some((_, i) => stoneState(i) === 'ready'), 'One of the rune stones in Verdant Vale is ready to wake up. Fly there and tap the glowing stone.'],
-      [!state.realm.hidden.grotto, 'Something is hidden behind the big waterfall in Verdant Vale. Try tapping the waterfall.'],
-      [!state.realm.hidden.hollow, 'There’s something shiny inside the big hollow tree in Verdant Vale. Tap the tree to look inside.'],
-      [!state.realm.hidden.glade, 'A thick wall of bushes on the left side of Verdant Vale is hiding something. Tap the bushes.'],
-      [!state.found['story-mural'], 'The carvings in the Vale ruins tell an old story. Tap them to read it.'],
-    ];
-    return hints.find(([ok]) => ok)?.[1] || null;
-  }
-
-  // Quill tells the story of each Door symbol once it glows, and of each
-  // treasure you find, one at a time, before the older lore.
-  function quillStories() {
-    const heard = S.heard.quill || {};
-    const lit = litRunes();
-    const runes = RUNE_STORIES.map((_, i) => i).filter((i) => lit[i] && !heard[`rune-${i}`]).map((i) => ({ key: `rune-${i}`, lines: RUNE_STORIES[i] }));
-    const treasures = Object.keys(TREASURE_STORIES).filter((id) => state.found[id] && !heard[`t-${id}`])
-      .map((id) => ({ key: `t-${id}`, lines: [`Is that a ${byId(id).name}? Let me see…`, ...TREASURE_STORIES[id]] }));
-    return [...runes, ...treasures];
-  }
-  function quillLines() {
-    if (!S.met.quill) { S.met.quill = true; save(); return QUILL_INTRO; }
-    const stories = quillStories();
-    if (stories.length) {
-      S.heard.quill ||= {};
-      S.heard.quill[stories[0].key] = true;
-      save();
-      return stories.length > 1 ? [...stories[0].lines, 'There’s more I could tell you. Come back and ask me again.'] : stories[0].lines;
-    }
-    return nextLore('quill', QUILL_LORE);
-  }
-
-  function luneLines() {
-    return nextLore('lune', LUNE_LORE) || [pickOne(LUNE_AMBIENT)];
-  }
-  const luneName = () => (S.heard.lune?.l3 ? 'Lune' : '???');
-
+  // ---- Talking with Quill ----
   let talking = false;
-  async function converse(who, name, lines) {
+  async function quillTalk() {
     if (talking || playing) return;
     talking = true;
-    await talk({ who, name, lines });
-    talking = false;
-  }
-
-  // ---- Little scenes: bubbles over the characters' heads ----
-  const dragonId = () => DRAGONS[state.dragon]?.id || 'pebble';
-  const dragonName = () => DRAGONS[state.dragon]?.name || 'Your dragon';
-  const hazelHead = () => hazel.root.position.clone().add(new V(0, 1.75, 0));
-  const pause = (ms) => new Promise((r) => setTimeout(r, ms));
-  // Give the dragon a moment to walk over, but never wait long.
-  const arrive = (walk) => Promise.race([walk, pause(5000)]);
-
-  // A short back-and-forth between a character and your dragon.
-  // Returns false if it was cut short (something else took the bubble).
-  async function banter(name, anchor, react, lines) {
-    for (const [who, text] of lines) {
-      const d = comp();
-      if (!d) return false;
-      let r;
-      if (who === 'you') {
-        d.react(Math.random() < 0.5 ? 'hop' : 'tilt');
-        r = await bubbles.show(overHead(d), { name: dragonName(), text });
+    const name = 'Quill, the Dragon Historian';
+    try {
+      // The first time, Quill says hello (and goes straight on to any news).
+      const hello = S.met.quill ? [] : QUILL_INTRO;
+      S.met.quill = true;
+      const next = storyList().find((s) => !S.heard.quill?.[s.key]);
+      if (next || hello.length) {
+        S.heard.quill ||= {};
+        if (next) S.heard.quill[next.key] = true;
+        save();
+        const more = storyList().some((s) => !S.heard.quill[s.key]);
+        const lines = [...hello, ...(next ? next.lines : [])];
+        await talk({ who: 'quill', name, lines: more ? [...lines, 'There’s more I could tell you. Come back and ask me again.'] : lines });
+        return;
+      }
+      // Nothing new: a calm word, or the whole story again if you'd like it.
+      S.quillTurn = (S.quillTurn || 0) + 1;
+      save();
+      if (S.quillTurn % 2 === 1) {
+        const choice = await talk({ who: 'quill', name, lines: ['Would you like to hear the story of the old world again?'], choices: [{ id: 'yes', label: 'Yes, please' }, { id: 'no', label: 'Not now' }] });
+        if (choice === 'yes') await talk({ who: 'quill', name, lines: recap() });
       } else {
-        react();
-        r = await bubbles.show(anchor, { name, text });
+        await talk({ who: 'quill', name, lines: ['Nothing new to report today. I’m sure I’ll have something soon, though.'] });
       }
-      if (r === 'replaced') return false;
-      await pause(250);
+    } finally {
+      talking = false;
     }
-    return true;
   }
 
-  async function act(fn) {
-    if (talking || playing) return;
-    talking = true;
-    try { await fn(); } catch (e) { console.error(e); }
-    talking = false;
-  }
-
-  world.onTap(hazel.root, () => {
-    if (getWhere() !== 'haven' || !hazel.root.visible || talking || playing) return;
-    hazel.react();
-    const p = hazel.root.position;
-    const walk = director.visit(comp(), new V(p.x - 1.3, 0, p.z + 1.2), p);
-    const lines = hazelLines();
-    if (lines) return converse('hazel', 'Hazel', lines);
-    const id = dragonId();
-    const kind = pickOne(['banter', 'banter', 'trick', 'toYou']);
-    act(async () => {
-      if (kind === 'toYou') {
-        await bubbles.show(hazelHead, { name: 'Hazel', text: pickOne(HAZEL_AMBIENT) });
-        return;
-      }
-      await arrive(walk);
-      if (kind === 'banter') {
-        await banter('Hazel', hazelHead, () => hazel.react(), pickOne(HAZEL_BANTER[id]));
-        return;
-      }
-      // Hazel shows off: a quick spin chasing her own tail.
-      const r = await bubbles.show(hazelHead, { name: 'Hazel', text: 'Watch this!', ms: 1600 });
-      if (r === 'replaced') return;
-      hazel.react('spin');
-      await pause(1700);
-      sparkle(p, 14);
-      const d = comp();
-      if (!d) return;
-      d.react('celebrate');
-      await bubbles.show(overHead(d), { name: dragonName(), text: HAZEL_TRICK[id] });
-    });
-  });
   world.onTap(quill.root, () => {
-    if (getWhere() !== 'vale' || talking || playing) return;
+    if (getWhere() !== 'vale') return;
     quill.react('tilt');
     const p = quill.root.position;
-    const walk = director.visit(comp(), new V(p.x + 1.4, p.y - 0.14, p.z + 1.6), p);
-    const lines = quillLines();
-    if (lines) return converse('quill', 'Quill, the Dragon Historian', lines);
-    // Nothing new to tell: a quiet word for you, or a chat with your dragon.
-    act(async () => {
-      if (Math.random() < 0.5) {
-        await bubbles.show(overHead(quill), { name: 'Quill', text: pickOne(QUILL_AMBIENT) });
-        return;
-      }
-      await arrive(walk);
-      await banter('Quill', overHead(quill), () => quill.react('tilt'), pickOne(QUILL_BANTER[dragonId()]));
-    });
+    director.visit(comp(), new V(p.x + 1.4, p.y - 0.14, p.z + 1.6), p);
+    quillTalk();
   });
-  world.onTap(flower, () => {
-    if (getWhere() !== 'haven') return;
-    if (pending('strange-flower')) return play('strange-flower');
-    say(momentSeen('strange-flower') ? 'The little flower still glows faintly, as if it remembers.' : 'A small white flower. It seems to be listening.');
-  });
-
-  // ---- Lune comes and goes ----
-  function showLune() {
-    const spots = LUNE_SPOTS[getWhere()];
-    if (!spots) return;
-    const spot = spots[Math.floor(Math.random() * spots.length)];
-    luneState.base.copy(spot);
-    luneState.where = getWhere();
-    luneState.visible = true;
-    luneState.since = Date.now();
-    lune.root.position.copy(spot);
-    sparkle(spot.clone().add(new V(0, -0.3, 0)), 14);
-    world.tween(1.2, (p) => lune.setFade(p));
-    if (!S.announced.lune) {
-      S.announced.lune = true;
-      save();
-      announce('A small glowing bird with long tail feathers has appeared somewhere nearby. See if you can spot her, then tap her!');
-    }
-  }
-  function hideLune(flyAway = true) {
-    if (!luneState.visible) return;
-    luneState.visible = false;
-    luneState.gone = Date.now();
-    if (!flyAway) { lune.setFade(0); return; }
-    const from = lune.root.position.clone();
-    world.tween(1.6, (p) => {
-      lune.root.position.copy(from).add(new V(p * 1.5, p * 2.5, -p));
-      lune.setFade(1 - p);
-    }, (p) => p);
-  }
-  world.onTap(lune.root, async () => {
-    if (!luneState.visible || luneState.where !== getWhere()) return;
-    await converse('lune', luneName(), luneLines());
-    hideLune(true);
-  });
-  setInterval(() => {
-    if (playing || talking || document.hidden) return;
-    const where = getWhere();
-    if (where !== 'haven' && where !== 'vale') return;
-    if (luneState.visible) {
-      if (luneState.where !== where || Date.now() - luneState.since > 4 * 60000) hideLune(luneState.where === where);
-      return;
-    }
-    if (state.stats.completed < 2 || Date.now() - luneState.gone < 90000) return;
-    const firstTime = !S.announced.lune;
-    if (Math.random() < (firstTime ? 0.5 : 0.12)) showLune();
-  }, 20000);
 
   return {
     check,
     play,
     pending,
-    quillHasStory: () => quillStories().length > 0,
+    quillHasStory,
     replay: (id) => play(id),
     isPlaying: () => playing,
-    setLocation() { if (luneState.visible) hideLune(false); check(); },
-    // for local testing
-    _showLune: showLune,
+    setLocation() { check(); },
   };
 }

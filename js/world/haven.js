@@ -87,6 +87,71 @@ export function drawRune(ctx, x, y, s, seed) {
   ctx.restore();
 }
 
+// The seven realm symbols on the Ancient Door (and on the eggs).
+// 0 Star, 1 Wave, 2 Leaf, 3 Crescent, 4 Flame, 5 Spiral, 6 Peak.
+export function drawRealm(ctx, x, y, s, i) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.lineWidth = s * 0.085;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  if (i === 0) {
+    for (let k = 0; k <= 10; k++) {
+      const r = k % 2 ? s * 0.2 : s * 0.48;
+      const a = -Math.PI / 2 + (k * Math.PI) / 5;
+      k ? ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r) : ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 0.07, 0, TAU);
+    ctx.fill();
+  } else if (i === 1) {
+    for (const dy of [-0.22, 0, 0.22]) {
+      ctx.moveTo(-s * 0.42, dy * s);
+      ctx.bezierCurveTo(-s * 0.2, (dy - 0.16) * s, -s * 0.05, (dy + 0.16) * s, s * 0.12, dy * s);
+      ctx.bezierCurveTo(s * 0.24, (dy - 0.12) * s, s * 0.34, (dy - 0.06) * s, s * 0.42, dy * s);
+    }
+    ctx.stroke();
+  } else if (i === 2) {
+    ctx.moveTo(0, -s * 0.46);
+    ctx.quadraticCurveTo(s * 0.4, -s * 0.05, 0, s * 0.42);
+    ctx.quadraticCurveTo(-s * 0.4, -s * 0.05, 0, -s * 0.46);
+    ctx.moveTo(0, -s * 0.3);
+    ctx.lineTo(0, s * 0.48);
+    ctx.stroke();
+  } else if (i === 3) {
+    ctx.arc(0, 0, s * 0.42, Math.PI * 0.3, Math.PI * 1.7);
+    ctx.quadraticCurveTo(-s * 0.05, 0, Math.cos(Math.PI * 0.3) * s * 0.42, Math.sin(Math.PI * 0.3) * s * 0.42);
+    ctx.stroke();
+  } else if (i === 4) {
+    ctx.moveTo(0, -s * 0.48);
+    ctx.bezierCurveTo(s * 0.12, -s * 0.2, s * 0.38, -s * 0.02, s * 0.3, s * 0.2);
+    ctx.bezierCurveTo(s * 0.24, s * 0.44, -s * 0.24, s * 0.44, -s * 0.3, s * 0.2);
+    ctx.bezierCurveTo(-s * 0.36, -s * 0.02, -s * 0.06, -s * 0.12, 0, -s * 0.48);
+    ctx.moveTo(0, s * 0.02);
+    ctx.quadraticCurveTo(s * 0.14, s * 0.18, 0, s * 0.3);
+    ctx.stroke();
+  } else if (i === 5) {
+    for (let k = 0; k <= 60; k++) {
+      const a = k * 0.21;
+      const r = s * (0.03 + k * 0.0072);
+      k ? ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r) : ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    ctx.stroke();
+  } else {
+    ctx.moveTo(-s * 0.46, s * 0.32);
+    ctx.lineTo(-s * 0.12, -s * 0.34);
+    ctx.lineTo(s * 0.08, s * 0.02);
+    ctx.lineTo(s * 0.2, -s * 0.16);
+    ctx.lineTo(s * 0.46, s * 0.32);
+    ctx.closePath();
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 // ---- Layout ----
 const L = {
   cottage: [-5.6, -2.8],
@@ -142,8 +207,7 @@ export function undersideMat(coneGeo, halfHeight) {
 export function havenWalkable(x, z) {
   if (Math.hypot(x, z) > ISLAND_R - 1.2) return false;
   const near = (p, r) => Math.hypot(x - p[0], z - p[1]) < r;
-  if (near(L.pond, L.pondR + 0.5) || near(L.cottage, 2.3) || near(L.nest, 1.0) || near(L.cliff, 3.2) || near(L.chest, 0.8)) return false;
-  if (Math.abs(x - L.door[0]) < 3.5 && z < L.door[1] + 1.9) return false; // the Door and its steps
+  if (near(L.pond, L.pondR + 0.5) || near(L.cottage, 2.3) || near(L.cliff, 3.2) || near(L.door, 0.6)) return false;
   return true;
 }
 
@@ -152,7 +216,9 @@ export const VALE_CENTER = new V(-12, -3, -100);
 const VALE_ANGLE = Math.atan2(VALE_CENTER.z, VALE_CENTER.x);
 const nearVale = (a, spread) => Math.abs(Math.atan2(Math.sin(a - VALE_ANGLE), Math.cos(a - VALE_ANGLE))) < spread;
 
-export function buildHaven(world, { say }) {
+// Your home island. The Ancient Door, the egg's nest and the old chest stand
+// in Dragon Haven (the other island); `sanctuary` says where, in world space.
+export function buildHaven(world, { say, sanctuary }) {
   const { scene } = world;
   const group = new THREE.Group();
   scene.add(group);
@@ -753,7 +819,7 @@ export function buildHaven(world, { say }) {
 
   // ---- Egg nest ----
   const nest = new THREE.Group();
-  nest.position.set(L.nest[0], 0, L.nest[1]);
+  nest.position.copy(sanctuary.nest);
   nest.add(mesh(new THREE.TorusGeometry(0.55, 0.22, 10, 26), mat('#8a6440', { roughness: 1 }), { pos: [0, 0.17, 0], rot: [Math.PI / 2, 0, 0], scale: [1, 1, 0.8] }));
   nest.add(mesh(new THREE.CircleGeometry(0.6, 20), mat('#b4905f'), { pos: [0, 0.05, 0], rot: [-Math.PI / 2, 0, 0], cast: false }));
   for (let i = 0; i < 14; i++) {
@@ -787,8 +853,8 @@ export function buildHaven(world, { say }) {
     erg.shadowBlur = 0;
     erg.fillStyle = '#000';
     erg.fillRect(0, 0, 512, 256);
-    runeGlow(erg, '#ffd98a', 10);
-    for (let i = 0; i < 5; i++) drawRune(erg, 51 + i * 102, 128, 52, i + 1);
+    runeGlow(erg, '#ffd98a', 14);
+    for (const x of [64, 192, 320, 448]) drawRealm(erg, x, 128, 96, eggState.realm ?? 0); // all the way round, so one always faces you
     if (crack > 0) {
       const n = Math.ceil(crack * cracks.length);
       erg.lineWidth = 3;
@@ -807,12 +873,12 @@ export function buildHaven(world, { say }) {
   const eggMat = new THREE.MeshStandardMaterial({ map: eggMapTex, emissiveMap: eggGlowTex, emissive: '#ffffff', emissiveIntensity: 0.6, roughness: 0.55 });
   const egg = mesh(new THREE.SphereGeometry(0.34, 32, 24), eggMat, { pos: [0, 0.45, 0], scale: [1, 1.3, 1] });
   nest.add(egg);
-  group.add(nest);
+  scene.add(nest);
   const eggLight = new THREE.PointLight('#ffd89a', 0, 4, 2);
   eggLight.position.set(0, 0.8, 0.3);
   nest.add(eggLight);
 
-  const eggState = { warmth: 0, tint: '#e8dcc2', pulse: 0, wobble: 0, shake: 0, swell: 0 };
+  const eggState = { warmth: 0, tint: '#e8dcc2', pulse: 0, wobble: 0, shake: 0, swell: 0, realm: 0 };
   paintEgg(eggState.tint, 0);
   updaters.push((t, dt) => {
     const w = eggState.warmth;
@@ -889,14 +955,10 @@ export function buildHaven(world, { say }) {
       m.rotation.y += m.userData.spin.y * dt;
     }
   });
-  tap(nest, () => {
-    eggState.wobble = 1;
-    say('The egg is warm. Faint symbols shimmer on its shell… they look like the ones on the Ancient Door.');
-  });
 
   // ---- The Ancient Door ----
   const door = new THREE.Group();
-  door.position.set(L.door[0], 0, L.door[1]);
+  door.position.copy(sanctuary.door);
   const doorStone = mat('#a09a88', { flatShading: true });
   const doorStoneDark = mat('#8d8676', { flatShading: true });
   door.add(mesh(new THREE.BoxGeometry(6.4, 0.3, 3.2), doorStoneDark, { pos: [0, 0.15, 0] }));
@@ -912,36 +974,35 @@ export function buildHaven(world, { say }) {
   for (const [x, y, s] of [[-1.4, 6.3, 0.5], [0.7, 6.9, 0.55], [1.9, 5.6, 0.4], [-2.1, 5.2, 0.45]]) {
     door.add(mesh(blobGeo(s, 0.12), mat('#6d9a4a'), { pos: [x, y, 0.1], scale: [1.3, 0.6, 1.3] }));
   }
-  // Door surface: eight symbols in a ring that light up one by one.
+  // Door surface: the seven realm symbols in a ring.
   const [dc, dg] = canvas(512, 928);
   const doorTex = tex(dc);
+  let doorFocus = -1; // a symbol singled out (to compare with an egg)
   function paintDoor(lit) {
     const n = lit.filter(Boolean).length;
     dg.shadowBlur = 0;
     dg.fillStyle = '#000';
     dg.fillRect(0, 0, 512, 928);
-    const dim = 'rgba(150, 120, 70, 0.45)';
-    runeGlow(dg, n ? '#ffd98a' : dim, n ? 8 + n * 1.5 : 0);
-    dg.globalAlpha = 0.35 + n * 0.08;
+    const dim = 'rgba(150, 120, 70, 0.5)';
+    runeGlow(dg, n ? '#ffd98a' : dim, n ? 10 : 0);
+    dg.globalAlpha = 0.4 + n * 0.3;
     dg.lineWidth = 5;
-    dg.beginPath(); dg.arc(256, 470, 190, 0, TAU); dg.stroke();
+    dg.beginPath(); dg.arc(256, 470, 200, 0, TAU); dg.stroke();
     dg.lineWidth = 2;
-    dg.beginPath(); dg.arc(256, 470, 150, 0, TAU); dg.stroke();
+    dg.beginPath(); dg.arc(256, 470, 120, 0, TAU); dg.stroke();
     dg.globalAlpha = 1;
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * TAU - Math.PI / 2;
-      runeGlow(dg, lit[i] ? '#ffe3a0' : dim, lit[i] ? 18 : 0);
-      drawRune(dg, 256 + Math.cos(a) * 170, 470 + Math.sin(a) * 170, 44, i + 1);
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * TAU - Math.PI / 2;
+      const on = lit[i] || doorFocus === i;
+      runeGlow(dg, on ? '#ffe9b0' : dim, on ? 22 : 0);
+      drawRealm(dg, 256 + Math.cos(a) * 165, 470 + Math.sin(a) * 165, on ? 74 : 62, i);
     }
-    const all = n === 8;
-    runeGlow(dg, all ? '#fff3cf' : dim, all ? 26 : 0);
-    drawRune(dg, 256, 470, 150, 3);
-    runeGlow(dg, n >= 4 ? '#ffd98a' : dim, n >= 4 ? 12 : 0);
-    drawRune(dg, 256, 760, 60, 9);
+    runeGlow(dg, n ? '#fff3cf' : dim, n ? 20 : 0);
+    dg.beginPath(); dg.arc(256, 470, 22, 0, TAU); dg.stroke();
     dg.beginPath(); dg.moveTo(256, 20); dg.lineTo(256, 250); dg.stroke();
     doorTex.needsUpdate = true;
   }
-  const doorLit = new Array(8).fill(false);
+  const doorLit = new Array(7).fill(false);
   paintDoor(doorLit);
 
   // A glimpse of the next realm, shown when the Door opens.
@@ -1018,12 +1079,11 @@ export function buildHaven(world, { say }) {
   runeGlow(pg, '#d8c6ff', 12);
   for (let i = 0; i < 3; i++) drawRune(pg, 64, 64 + i * 128, 70, 20 + i);
   const pillarRuneMat = new THREE.MeshBasicMaterial({ map: tex(pc), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
-  for (const sx of [-1, 1]) door.add(mesh(new THREE.PlaneGeometry(0.5, 1.5), pillarRuneMat, { pos: [1.98 * sx, 2.6, 0.41], cast: false }));
   const doorLight = new THREE.PointLight('#ffd89a', 8, 9, 2);
   doorLight.position.set(0, 2.6, 1.4);
   door.add(doorLight);
-  door.lookAt(0, 0, 6);
-  group.add(door);
+  door.lookAt(sanctuary.face.x, sanctuary.door.y, sanctuary.face.z);
+  scene.add(door);
   let doorPulse = 0;
   let doorAwake = 0; // 0..1, blazes during the opening moment
   updaters.push((t, dt) => {
@@ -1033,10 +1093,6 @@ export function buildHaven(world, { say }) {
     doorSurfaceMat.emissiveIntensity = base + doorPulse * 1.6 + doorAwake * 2.5;
     doorLight.intensity = 3 + n * 1.2 + base * 3 + doorPulse * 14 + doorAwake * 25;
     pillarRuneMat.opacity = Math.min(1, 0.35 + n * 0.06 + 0.25 * Math.sin(t * 0.9 + 1) + doorPulse * 0.3 + doorAwake);
-  });
-  tap(door, () => {
-    doorPulse = 1;
-    say('The Ancient Door hums softly. Its symbols brighten… as if something on the other side is waking.');
   });
   // Two soft eyes that can open inside the stone.
   const [ec2, eg2] = canvas(128, 64);
@@ -1076,8 +1132,10 @@ export function buildHaven(world, { say }) {
         eyeMat.opacity = Math.min(1, y * 1.4);
       });
     },
-    front: new V(L.door[0], 0, L.door[1] + 3.4),
+    front: sanctuary.door.clone().add(new V().subVectors(sanctuary.face, sanctuary.door).setY(0).normalize().multiplyScalar(3.4)),
     setLit(lit) { lit.forEach((v, i) => (doorLit[i] = !!v)); paintDoor(doorLit); },
+    // Make one symbol glow on its own (or -1 for none).
+    setFocus(i) { doorFocus = i; paintDoor(doorLit); },
     pulse() { doorPulse = 1; },
     awaken(dur) { return world.tween(dur, (p) => { doorAwake = p; }); },
     showGlimpse(dur) { return world.tween(dur, (p) => { glimpseMat.opacity = p; doorAwake = 1 - p * 0.6; }); },
@@ -1086,7 +1144,7 @@ export function buildHaven(world, { say }) {
 
   // ---- Treasure chest ----
   const chest = new THREE.Group();
-  chest.position.set(L.chest[0], 0, L.chest[1]);
+  chest.position.copy(sanctuary.chest);
   const wood = mat('#8a5a34');
   const gold = mat('#d9a948', { metalness: 0.6, roughness: 0.35 });
   chest.add(mesh(new THREE.BoxGeometry(0.9, 0.5, 0.58), wood, { pos: [0, 0.25, 0] }));
@@ -1097,8 +1155,8 @@ export function buildHaven(world, { say }) {
   chest.add(lid);
   for (const x of [-0.3, 0.3]) chest.add(mesh(new THREE.BoxGeometry(0.07, 0.52, 0.6), gold, { pos: [x, 0.25, 0] }));
   chest.add(mesh(new THREE.BoxGeometry(0.14, 0.16, 0.05), gold, { pos: [0, 0.42, 0.3] }));
-  chest.rotation.y = 0.5;
-  group.add(chest);
+  chest.rotation.y = Math.atan2(sanctuary.face.x - sanctuary.chest.x, sanctuary.face.z - sanctuary.chest.z);
+  scene.add(chest);
   let chestJiggle = 0;
   let chestOpen = 0;
   let chestOpenTarget = 0;
@@ -1111,12 +1169,34 @@ export function buildHaven(world, { say }) {
     lid.rotation.x = -Math.abs(Math.sin(chestJiggle * 18)) * 0.12 * chestJiggle - 1.9 * chestOpen;
     chestGlow.intensity = chestOpen * (2.5 + 0.5 * Math.sin(t * 2));
   });
-  tap(chest, () => { chestJiggle = 1; say('An old chest, sealed tight. Maybe a key is out there somewhere.'); });
   const chestApi = {
     object: chest,
     jiggle() { chestJiggle = 1; },
     setOpen(open) { chestOpenTarget = open ? 1 : 0; },
   };
+
+  // ---- Signpost at the end of the path: the way to Dragon Haven ----
+  const signpost = new THREE.Group();
+  signpost.position.set(L.door[0] + 0.6, 0, L.door[1] + 1.6);
+  {
+    const wood = mat('#8a6238');
+    signpost.add(mesh(new THREE.CylinderGeometry(0.07, 0.09, 2.2, 8), wood, { pos: [0, 1.1, 0] }));
+    const [sc, sg] = canvas(256, 64);
+    sg.fillStyle = '#c99a5a';
+    sg.fillRect(0, 0, 256, 64);
+    sg.fillStyle = '#4a3420';
+    sg.font = '700 30px Georgia, serif';
+    sg.textAlign = 'center';
+    sg.textBaseline = 'middle';
+    sg.fillText('Dragon Haven  →', 128, 34);
+    const board = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.4, 0.07), [wood, wood, wood, wood, new THREE.MeshStandardMaterial({ map: tex(sc), roughness: 0.9 }), wood]);
+    board.position.set(0.25, 1.85, 0);
+    board.castShadow = true;
+    signpost.add(board);
+    signpost.add(mesh(blobGeo(0.35, 0.1), mat('#6f9c4c'), { pos: [0, 0.1, 0], scale: [1.3, 0.5, 1.3] }));
+  }
+  signpost.lookAt(0, 0, 14);
+  group.add(signpost);
 
   // ---- Butterflies ----
   const butterflyColors = ['#7fb6e8', '#f2b36b', '#e9a9c8', '#f5e28a', '#b9a4ef', '#7fb6e8', '#f2b36b'];
@@ -1227,10 +1307,12 @@ export function buildHaven(world, { say }) {
     setFlowerDensity(f) { for (const m of meadow.meshes) m.count = Math.round(meadow.total * f); },
     nest,
     chest: chestApi,
+    signpost,
     anchors: {
       home: at(L.home),
-      nest: at(L.nest),
-      door: at(L.door),
+      nest: sanctuary.nest.clone(),
+      door: sanctuary.door.clone(),
+      nestling: at(L.nest), // where a new baby sleeps at home until it has a nest
       select: L.select.map(at),
     },
   };

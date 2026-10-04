@@ -65,6 +65,15 @@ export const CARE_ACTIONS = [
   { id: 'explore', label: 'Explore', icon: '🧭' },
 ];
 
+// ---- What a star hatchling remembers from inside the shell ----
+export const STAR_MEMORIES = [
+  'I remember… it was dark, but not scary. There were tiny lights all around me.',
+  'Someone was humming. A long, slow song, over and over.',
+  'Sometimes the lights drifted past, like slow snow.',
+  'It was cold outside the shell, I think. But I was warm.',
+  'I remember a big round door, far away, all lit up.',
+];
+
 // ---- Quill's stories ----
 // One story for each symbol on the Ancient Door, told once it lights up,
 // in the order the symbols wake.
@@ -88,8 +97,8 @@ export const TREASURE_STORIES = {
   'bronze-bell': ['A dragon bell! Only dragons can hear it ring.', 'In the old days, a dragon far from home would ring it, and every dragon who heard would ring theirs back. So no one was ever really alone.'],
   'dawn-feather': ['A Dawn Feather, from the dawn birds of the eastern realm.', 'They only sing at sunrise, and only for people who got up anyway. Even when it was hard.'],
   'moon-shell': ['A Moonlit Shell. The sea you hear inside is a real one, in a realm behind one of the seven doors.', 'Someday, perhaps, you’ll hear it for yourself.'],
-  'wooden-fox': ['A carved fox. Worn smooth by many hands.', 'Every Keeper’s apprentice carved one. Your friend Hazel’s great-great-grandmother sat for this one, I believe. Don’t tell her. She’ll be insufferable.'],
+  'wooden-fox': ['A carved fox. Worn smooth by many hands.', 'Every Keeper’s apprentice carved one, for the foxes who guided travellers between the realms. Clever creatures, foxes. They always knew the way home.'],
   'keepers-compass': ['The Keeper’s Compass. It doesn’t point north. It points to whatever you need most.', 'For now, that seems to be the Door. Interesting.'],
   'vale-crystal': ['A grotto crystal. They hum when the Door is near waking.', 'The waterfall hid them for centuries. It seems it decided you could be trusted.'],
-  'owl-feather': ['A silver owl feather. The owls of the hollow tree are the Vale’s oldest residents.', 'They leave a feather for travellers they like. It is a very rare thing.'],
+  'owl-feather': ['A silver owl feather. The owls of the hollow tree are Dragon Haven’s oldest residents.', 'They leave a feather for travellers they like. It is a very rare thing.'],
 };

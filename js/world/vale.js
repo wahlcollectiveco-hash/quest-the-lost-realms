@@ -1,8 +1,9 @@
-// Verdant Vale: the first Realm. A larger floating island beyond the Door,
-// with deep forest, old ruins, a great waterfall, a stone bridge, three
-// rune stones that wake as you make progress, and a few hidden spots.
+// Dragon Haven: the old sanctuary, a larger floating island across the sky
+// from your home. The Ancient Door stands here with the egg's nest and the
+// Keeper's chest, beside Quill's ruins, a great waterfall, a stone bridge
+// and a few hidden spots.
 import * as THREE from 'three';
-import { rng, mat, mesh, blobGeo, canvas, tex, drawRune, undersideMat, VALE_CENTER } from './haven.js';
+import { rng, mat, mesh, blobGeo, canvas, tex, drawRune, drawRealm, undersideMat, VALE_CENTER } from './haven.js';
 import { ramp, toon, foliageGeo, leafMat, makeGrass, flowerGeo, flowerCentreGeo, makeWater } from './style.js';
 import { easeOut } from './scene.js';
 
@@ -23,7 +24,20 @@ const L = {
   ruins: [4, -9.2],
   hollow: [10.6, -7.6],
   glade: [-11.6, 5.2],
-  stones: [[-5.6, 5.4], [-5.2, -10.8], [9.4, -1.8]],
+  stones: [],
+  // the Ancient Door, the egg's nest and the Keeper's chest
+  door: [-2.0, -13.2],
+  nest: [-4.4, -8.8],
+  chest: [-6.0, -11.4],
+};
+
+// Where the Door, nest and chest stand, in world space (used by haven.js).
+const W = (x, z) => new V(x, 0, z).add(VALE_CENTER);
+export const SANCTUARY = {
+  door: W(...L.door),
+  nest: W(...L.nest),
+  chest: W(...L.chest),
+  face: W(0, 12),
 };
 const streamCurve = new THREE.CatmullRomCurve3([
   new V(-7.8, 0.04, -6.8), new V(-6, 0.04, -4.2), new V(-2.4, 0.04, -1.4), new V(1, 0.04, 0.3),
@@ -41,6 +55,7 @@ function isOpen(x, z, pad = 0) {
   const near = (p, r) => Math.hypot(x - p[0], z - p[1]) < r + pad;
   if (near(L.pool, L.poolR + 0.6) || near(L.cliff, 3.4) || near(L.ruins, 4) || near(L.arrive, 2)) return false;
   if (near(L.hollow, 2) || near(L.glade, 2.2) || L.stones.some((s) => near(s, 1))) return false;
+  if (near(L.door, 4.4) || near(L.nest, 1.6) || near(L.chest, 1.3)) return false;
   if (minDist(streamPts, x, z) < 1.3 + pad) return false;
   if (minDist(pathPts, x, z) < 0.8 + pad) return false;
   return true;
@@ -53,6 +68,8 @@ export function valeWalkable(wx, wz) {
   const near = (p, r) => Math.hypot(x - p[0], z - p[1]) < r;
   if (near(L.pool, L.poolR + 0.5) || near(L.cliff, 3.4) || near(L.hollow, 1.9) || near(L.glade, 1.4)) return false;
   if (L.stones.some((s) => near(s, 0.9))) return false;
+  if (near(L.nest, 1.0) || near(L.chest, 0.8)) return false;
+  if (Math.abs(x - L.door[0]) < 3.5 && z < L.door[1] + 1.9) return false; // the Door and its steps
   return true;
 }
 
@@ -142,6 +159,7 @@ export function buildVale(world) {
   stroke(streamPts, 70, '#e0cf9c', 6);
   disc(...L.pool, L.poolR + 0.6, '#e6d49e');
   disc(...L.ruins, 3.9, '#cdc2a6', 10);
+  disc(...L.door, 3.8, '#cdbf9c', 10);
   disc(...L.arrive, 1.9, '#d8ccb0', 6);
   const ground = mesh(new THREE.CircleGeometry(RI, 110), new THREE.MeshToonMaterial({ map: tex(gc), gradientMap: ramp }), { rot: [-Math.PI / 2, 0, 0], cast: false });
   group.add(ground);
@@ -314,7 +332,7 @@ export function buildVale(world) {
   mg.shadowBlur = 10;
   mg.lineWidth = 3;
   mg.beginPath(); mg.arc(256, 200, 110, 0, TAU); mg.stroke();
-  for (let i = 0; i < 8; i++) { const a = (i / 8) * TAU - Math.PI / 2; drawRune(mg, 256 + Math.cos(a) * 110, 200 + Math.sin(a) * 110, 34, i + 1); }
+  for (let i = 0; i < 7; i++) { const a = (i / 7) * TAU - Math.PI / 2; drawRealm(mg, 256 + Math.cos(a) * 110, 200 + Math.sin(a) * 110, 40, i); }
   // little dragons flying through the ring
   for (const [x, y, s] of [[110, 90, 1], [400, 70, -1], [256, 200, 1]]) {
     mg.beginPath(); mg.moveTo(x - 22 * s, y); mg.quadraticCurveTo(x, y - 18, x + 22 * s, y); mg.quadraticCurveTo(x, y - 4, x - 22 * s, y); mg.fill();
@@ -459,7 +477,7 @@ export function buildVale(world) {
       rand() < 0.4 ? pineTree(x, z, R(1, 1.4)) : roundTree(x, z, R(1, 1.35));
     }
   }
-  for (const [x, z, s] of [[-3, -12.5, 1.2], [8, -12.5, 1.1], [-13, -2, 1.2], [13, 1, 1.1], [6.5, 8.8, 0.9], [-7.8, 9.8, 1]]) roundTree(x, z, s);
+  for (const [x, z, s] of [[8, -12.5, 1.1], [-13, -2, 1.2], [13, 1, 1.1], [6.5, 8.8, 0.9], [-7.8, 9.8, 1]]) roundTree(x, z, s);
   updaters.push((t) => { for (const s of sway) { s.o.rotation.z = Math.sin(t * 0.8 + s.ph) * s.a; s.o.rotation.x = Math.cos(t * 0.6 + s.ph) * s.a * 0.7; } });
   for (let i = 0; i < 16; i++) {
     let x, z, tries = 0;
@@ -476,6 +494,7 @@ export function buildVale(world) {
       if (Math.hypot(x, z) > RI - 0.4) return false;
       const near = (p, r) => Math.hypot(x - p[0], z - p[1]) < r;
       if (near(L.pool, L.poolR + 0.2) || near(L.cliff, 2.9) || near(L.ruins, 3.6) || near(L.arrive, 1.75) || near(L.hollow, 1.5)) return false;
+      if (near(L.nest, 0.9) || near(L.chest, 0.7) || (Math.abs(x - L.door[0]) < 3.3 && z < L.door[1] + 1.7)) return false;
       if (minDist(streamPts, x, z) < 0.85) return false;
       const dPath = minDist(pathPts, x, z);
       if (dPath < 0.45 || (dPath < 0.9 && rand() < 0.6)) return false;
@@ -576,9 +595,6 @@ export function buildVale(world) {
       glade: at(L.glade[0] + 1.6, L.glade[1] + 1.8),
       mural: at(L.ruins[0] - 0.4, L.ruins[1] + 1.2),
       bridge: at(0.3, 2.2),
-      stone0: at(L.stones[0][0] + 1.2, L.stones[0][1] + 1.2),
-      stone1: at(L.stones[1][0] + 1.2, L.stones[1][1] + 1.4),
-      stone2: at(L.stones[2][0] - 1.2, L.stones[2][1] + 1.2),
     }[name]),
     targets: { waterfall: fall, hollow, glade, mural, pool, stones: stones.map((s) => s.object), crystals },
     world: (name) => ({ waterfall: at(L.pool[0] - 1.2, L.pool[1] - 1.2, 1), hollow: at(L.hollow[0], L.hollow[1], 1.4), glade: at(L.glade[0], L.glade[1]), mural: at(L.ruins[0], L.ruins[1] - 2) }[name]),

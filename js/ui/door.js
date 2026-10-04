@@ -1,65 +1,32 @@
-// The Ancient Door panel: which of its eight symbols glow, and gentle hints
-// for the rest. When all eight glow, the Door can be opened.
+// The Ancient Door panel. Seven symbols, one for each realm behind the Door.
+// Only the Star is known so far: the star egg came from its realm. The panel
+// shows exactly what waking the Star takes, as a short checklist.
 import { state } from '../state.js';
-import { RUNES, litRunes, nextRune, stoneState, questsUntilStone, valeUnlocked } from '../realm.js';
-import { RUNE_STORIES } from '../data/life.js';
-import { drawRune } from '../world/haven.js';
+import { REALMS, litRunes, starSteps, starReady } from '../realm.js';
+import { drawRealm } from '../world/haven.js';
 import { esc, openModal } from './common.js';
 
-const glyphCache = new Map();
-function glyph(i, lit) {
-  const key = `${i}-${lit}`;
-  if (!glyphCache.has(key)) {
-    const c = document.createElement('canvas');
-    c.width = c.height = 64;
-    const g = c.getContext('2d');
-    g.strokeStyle = g.fillStyle = lit ? '#c98f2a' : '#b9ae98';
-    if (lit) { g.shadowColor = '#ffd98a'; g.shadowBlur = 8; }
-    drawRune(g, 32, 32, 44, i + 1);
-    glyphCache.set(key, c.toDataURL());
-  }
-  return glyphCache.get(key);
+const CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7"/></svg>';
+
+function glyph(i, lit, size = 64) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d');
+  g.strokeStyle = g.fillStyle = lit ? '#c98f2a' : i === 0 ? '#a88a55' : '#c4baa6';
+  if (lit) { g.shadowColor = '#ffd98a'; g.shadowBlur = 8; }
+  drawRealm(g, size / 2, size / 2, size * 0.7, i);
+  return c.toDataURL();
 }
 
-function nextDetail(r) {
-  if (r.stone !== undefined) {
-    const st = stoneState(r.stone);
-    if (st === 'awake') return 'Its stone is already awake. This symbol will light right away.';
-    if (st === 'ready') return 'The stone is ready! Fly to Verdant Vale and tap it.';
-    const k = questsUntilStone(r.stone);
-    return `${r.hint} It wakes after ${k} more finished ${k === 1 ? 'Quest' : 'Quests'}.`;
-  }
-  if (r.name === 'The Vale Remembers' && !valeUnlocked()) return 'Finish a Quest to clear the mist, then fly to Verdant Vale.';
-  return r.hint;
-}
-
-// The Door as a journey: the symbols that glow, the one that wakes next
-// (with exactly what to do), and the rest still a mystery.
-export function openDoorPanel({ onOpen, onVale }) {
+export function openDoorPanel({ onOpen, onVale, here = true }) {
   const lit = litRunes();
-  const n = lit.filter(Boolean).length;
-  const next = nextRune();
-  const heard = state.story.heard.quill || {};
-  const intro = n === 0
-    ? 'The Door is quiet. Eight symbols sleep in the stone, and they wake one at a time.'
-    : n < 8
-      ? `${n} of 8 symbols glow. When all eight are awake, the Door will open.`
-      : state.realm.doorOpened
-        ? 'All eight symbols glow. The Door has already shown you a glimpse beyond.'
-        : 'All eight symbols glow. The Ancient Door is awake.';
-  const row = (r, i) => {
-    if (lit[i]) {
-      const story = heard[`rune-${i}`] ? RUNE_STORIES[i][1] : 'Quill knows what this symbol means. Ask in Verdant Vale.';
-      return `<li class="lit"><img src="${glyph(i, true)}" alt="" width="36" height="36">
-        <div class="t-info"><span class="t-name">${esc(r.name)}</span><span class="t-meta">${esc(story)}</span></div></li>`;
-    }
-    if (i === next) {
-      return `<li class="next"><img src="${glyph(i, false)}" alt="" width="36" height="36">
-        <div class="t-info"><span class="t-eyebrow">Next to wake</span><span class="t-name">${esc(r.name)}</span><span class="t-meta">${esc(nextDetail(r))}</span></div></li>`;
-    }
-    return `<li class="later"><img src="${glyph(i, false)}" alt="" width="36" height="36">
-      <div class="t-info"><span class="t-name">A sleeping symbol</span><span class="t-meta">It wakes after the ones before it.</span></div></li>`;
-  };
+  const steps = starSteps();
+  const ready = starReady();
+  const intro = state.realm.doorOpened
+    ? 'The Star glows. The Door has shown you a glimpse of the Realm of Stars.'
+    : ready
+      ? 'The Star is glowing. The Door is ready to open.'
+      : 'Seven symbols, one for each realm behind the Door. Your egg carries the Star. Wake it, and the Door will open the way to the Realm of Stars.';
   const m = openModal(`
     <div class="door-panel">
       <div class="detail-head">
@@ -67,10 +34,26 @@ export function openDoorPanel({ onOpen, onVale }) {
         <button class="icon-btn small" data-d="close" aria-label="Close">✕</button>
       </div>
       <p class="next-intro">${esc(intro)}</p>
-      <ol class="rune-list">${RUNES.map(row).join('')}</ol>
+      <ol class="rune-list">
+        <li class="${lit[0] ? 'lit' : 'next'}">
+          <img src="${glyph(0, lit[0])}" alt="" width="40" height="40">
+          <div class="t-info">
+            <span class="t-eyebrow">${lit[0] ? 'Awake' : 'Your egg’s symbol'}</span>
+            <span class="t-name">The Star · ${esc(REALMS[0].name)}</span>
+            <ul class="star-steps">
+              ${steps.map((s) => `<li class="${s.done ? 'done' : ''}"><span class="tick">${s.done ? CHECK : ''}</span>${esc(s.label)}${s.progress && !s.done ? ` <small>(${esc(s.progress)})</small>` : ''}</li>`).join('')}
+            </ul>
+          </div>
+        </li>
+        ${REALMS.slice(1).map((r, k) => `
+          <li class="later">
+            <img src="${glyph(k + 1, false)}" alt="" width="36" height="36">
+            <div class="t-info"><span class="t-name">${esc(r.symbol)}</span><span class="t-meta">A realm not yet known.</span></div>
+          </li>`).join('')}
+      </ol>
       <div class="detail-actions">
-        ${valeUnlocked() ? '<button class="btn ghost" data-d="vale">Fly to Verdant Vale</button>' : ''}
-        ${n === 8 ? `<button class="btn primary glow" data-d="open">${state.realm.doorOpened ? 'Look beyond again' : 'Open the Door'}</button>` : ''}
+        ${!here ? '<button class="btn ghost" data-d="vale">Fly to Dragon Haven</button>' : ''}
+        ${ready && here ? `<button class="btn primary glow" data-d="open">${state.realm.doorOpened ? 'Look beyond again' : 'Open the Door'}</button>` : ''}
       </div>
     </div>`, { className: 'detail', label: 'The Ancient Door' });
   m.el.addEventListener('click', (e) => {

@@ -6,7 +6,8 @@ import { paletteById } from '../data/creatures.js';
 import { eggFraction, eggNeed, eggPalette, eggReady, eggStage, renameCreature } from '../rewards.js';
 import { $, esc, openModal } from './common.js';
 import { raising, wishCard, wishBaby } from '../wishes.js';
-import { TREASURE_STORIES, TREATS, VISITORS } from '../data/life.js';
+import { TREASURE_STORIES, TREATS } from '../data/life.js';
+import { hasEgg } from '../wishes.js';
 import { MOMENTS, momentSeen } from '../story.js';
 
 const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
@@ -47,7 +48,7 @@ const MAP_ART = `
   <circle cx="40" cy="120" r="5" fill="#8fb9d6" stroke="#6a9bbd" stroke-width="0.7"/>
   ${tree(24, 122, 0.8)}${tree(58, 118, 0.8)}${tree(52, 132, 0.7)}
   <path d="M62 126h7v-5h-7zM64 121v-3M67 121v-4" fill="#d9cdb0" stroke="#8a7a5c" stroke-width="0.7"/>
-  <text x="44" y="146" text-anchor="middle" font-size="6.5" font-style="italic" fill="#6b5330" font-family="Georgia, serif">Verdant Vale</text>
+  <text x="44" y="146" text-anchor="middle" font-size="6.5" font-style="italic" fill="#6b5330" font-family="Georgia, serif">Dragon Haven</text>
   <!-- mountains -->
   ${peak(70, 46, 1)}${peak(52, 52, 0.75)}${peak(86, 54, 0.7)}${peak(16, 40, 0.6)}
   <!-- the forest -->
@@ -101,6 +102,15 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay,
 
   function eggsTab() {
     if (raising()) return raisingTab();
+    if (!hasEgg()) {
+      return `<div class="egg-card"><div class="egg-info">
+          <p class="eyebrow">No egg right now</p>
+          <p class="egg-stage">The star egg has hatched. One egg comes from each realm, so the next one will come from behind the Door.</p>
+        </div></div>
+        <h3 class="coll-h">Hatched friends</h3>
+        <ul class="template-list">${friendsHTML()}</ul>
+        ${extrasHTML()}`;
+    }
     const pal = eggPalette();
     const f = eggFraction();
     const ready = eggReady();
@@ -118,7 +128,7 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay,
       <div class="egg-card">
         ${eggSVG(pal.egg, f)}
         <div class="egg-info">
-          <p class="eyebrow">${state.creatures.length ? 'A new egg' : 'The egg in the nest'}</p>
+          <p class="eyebrow">The star egg, in Dragon Haven</p>
           <p class="egg-stage">${esc(eggStage())}</p>
           <div class="warmth" role="img" aria-label="Warmth ${warmthPct}%"><i style="width:${warmthPct}%"></i></div>
           <p class="t-meta">Warmth ${Math.round(state.hatch.warmth)} of ${eggNeed()}</p>
@@ -144,11 +154,8 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay,
 
   // Visitors who moved in, and the treats saved for your dragon.
   function extrasHTML() {
-    const vis = (state.visitors || []).map((id) => VISITORS.find((v) => v.id === id)).filter(Boolean);
     const pantry = TREATS.filter((t) => state.pantry?.[t.id] > 0);
-    return `<h3 class="coll-h">Visitors <span>${vis.length} of ${VISITORS.length}</span></h3>
-      ${vis.length ? `<ul class="template-list">${vis.map((v) => `<li><span class="card-emoji small" aria-hidden="true">${v.icon}</span><div class="t-info"><span class="t-name">${esc(v.name)}</span><span class="t-meta">The ${esc(v.species)}</span></div></li>`).join('')}</ul>` : '<p class="coll-empty">No one yet. Finish Quests and someone might move in.</p>'}
-      <h3 class="coll-h">Treats</h3>
+    return `<h3 class="coll-h">Treats</h3>
       ${pantry.length ? `<ul class="treat-list">${pantry.map((t) => `<li><span aria-hidden="true">${t.icon}</span>${esc(t.name)} <small>×${state.pantry[t.id]}</small></li>`).join('')}</ul>` : '<p class="coll-empty">No treats saved right now. Finish Quests to find some.</p>'}`;
   }
 
@@ -183,7 +190,7 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay,
               ${iconFor(it, found)}
               <span class="c-name">${found ? esc(it.name) : 'Not yet found'}</span>
               ${found ? `<span class="c-desc">${esc(it.desc)}</span>` : ''}
-              ${found && it.kind === 'treasure' && TREASURE_STORIES[it.id] ? `<span class="c-tale">${esc(state.story.heard.quill?.[`t-${it.id}`] ? `Quill says: “${TREASURE_STORIES[it.id][TREASURE_STORIES[it.id].length - 1]}”` : 'Quill knows its story. Ask in Verdant Vale.')}</span>` : ''}
+              ${found && it.kind === 'treasure' && TREASURE_STORIES[it.id] ? `<span class="c-tale">${esc(state.story.heard.quill?.[`t-${it.id}`] ? `Quill says: “${TREASURE_STORIES[it.id][TREASURE_STORIES[it.id].length - 1]}”` : 'Quill knows its story. Ask in Dragon Haven.')}</span>` : ''}
               ${found && showHaven && inHaven(it) && (state.unplaced || []).includes(it.id) ? `<button class="btn primary small" data-c="place" data-id="${it.id}">Place it</button>` : ''}
               ${found && showHaven && inHaven(it) && !(state.unplaced || []).includes(it.id) ? `<span class="c-links"><button class="link-btn" data-c="show" data-id="${it.id}">See it</button>${it.id !== 'dewdrop-lily' ? `<button class="link-btn" data-c="place" data-id="${it.id}">Move it</button>` : ''}</span>` : ''}
             </li>`;
@@ -284,7 +291,7 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay,
     const eyebrow = {
       treasure: `${name} found a treasure!`,
       flower: 'Something new is blooming',
-      decoration: 'The Haven changed a little',
+      decoration: 'Something new for your home',
       key: `${name} dug up a key!`,
       map: 'A piece of an old map!',
       story: 'A story fragment',
@@ -297,7 +304,7 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay,
       <h3>${esc(it.name)}</h3>
       <p class="disc-desc ${it.kind === 'story' ? 'story' : ''}">${esc(it.kind === 'story' ? it.text : it.desc)}</p>
       ${mapDone ? '<p class="disc-desc">The map is complete! A dotted path leads beyond the Ancient Door…</p>' : ''}
-      ${TREASURE_STORIES[it.id] ? '<p class="disc-note">Quill in Verdant Vale knows the story behind this one. Go and ask!</p>' : ''}
+      ${TREASURE_STORIES[it.id] ? '<p class="disc-note">Quill in Dragon Haven knows the story behind this one. Go and ask!</p>' : ''}
       <div class="disc-actions">
         <button class="btn primary" data-disc="ok">${more ? 'Next' : inHaven(it) ? (placeLater ? 'Choose a spot' : 'Nice!') : 'Collect'}</button>
       </div>`;
