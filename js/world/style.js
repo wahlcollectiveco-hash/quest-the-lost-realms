@@ -44,6 +44,106 @@ export function toon(color, o = {}) {
   return m;
 }
 
+// ---- Characters: soft cel shading plus a warm rim of light ----
+// The rim catches the edges of a character so they glow softly against the
+// world, like the backlit figures in a storybook illustration.
+export function rimToon(color, { rim = '#ffe7bf', strength = 0.42, power = 2.4, ...o } = {}) {
+  const m = new THREE.MeshToonMaterial({ color, gradientMap: ramp, ...o });
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.rimColor = { value: new THREE.Color(rim) };
+    sh.uniforms.rimStrength = { value: strength };
+    sh.uniforms.rimPower = { value: power };
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 rimColor;\nuniform float rimStrength;\nuniform float rimPower;')
+      .replace('#include <opaque_fragment>', `
+        float rimF = pow(1.0 - saturate(dot(normal, normalize(vViewPosition))), rimPower);
+        outgoingLight += rimColor * rimStrength * rimF;
+        #include <opaque_fragment>`);
+  };
+  return m;
+}
+
+// ---- Painted ground ----
+// A worn dirt path: dark soft edges where grass meets earth, a sandy middle
+// and a pale trodden centre, with pebbles scattered along it.
+export function paintPath(g, pts, toC, w, rand) {
+  const stroke = (width, color, blur) => {
+    g.save();
+    g.filter = `blur(${blur}px)`;
+    g.strokeStyle = color;
+    g.lineWidth = width;
+    g.lineCap = g.lineJoin = 'round';
+    g.beginPath();
+    pts.forEach((p, i) => { const [x, y] = toC(p.x, p.z); i ? g.lineTo(x, y) : g.moveTo(x, y); });
+    g.stroke();
+    g.restore();
+  };
+  stroke(w * 1.5, 'rgba(86,120,52,0.35)', 14); // trampled grass along the edges
+  stroke(w * 1.18, 'rgba(176,142,92,0.85)', 9);
+  stroke(w * 0.92, 'rgba(214,190,140,0.95)', 6);
+  stroke(w * 0.45, 'rgba(236,220,178,0.75)', 5);
+  for (const p of pts) {
+    const [x, y] = toC(p.x, p.z);
+    for (let k = 0; k < 3; k++) {
+      g.fillStyle = rand() < 0.5 ? 'rgba(160,136,98,0.7)' : 'rgba(244,234,208,0.8)';
+      g.beginPath();
+      g.ellipse(x + (rand() - 0.5) * w * 1.1, y + (rand() - 0.5) * w * 1.1, 1.5 + rand() * 2.5, 1.2 + rand() * 1.8, rand() * 3, 0, TAU);
+      g.fill();
+    }
+  }
+}
+// A patch of clover: little three-leaf sprigs and a few white flowers.
+export function paintClover(g, x, y, r, rand) {
+  for (let i = 0; i < 26; i++) {
+    const a = rand() * TAU, d = Math.sqrt(rand()) * r;
+    const cx = x + Math.cos(a) * d, cy = y + Math.sin(a) * d;
+    const s = 2.4 + rand() * 1.6;
+    for (let k = 0; k < 3; k++) {
+      const b = (k / 3) * TAU + rand();
+      g.fillStyle = rand() < 0.5 ? 'rgba(70,128,52,0.85)' : 'rgba(92,150,62,0.85)';
+      g.beginPath();
+      g.arc(cx + Math.cos(b) * s, cy + Math.sin(b) * s, s, 0, TAU);
+      g.fill();
+    }
+    if (rand() < 0.18) {
+      g.fillStyle = 'rgba(255,252,240,0.95)';
+      g.beginPath();
+      g.arc(cx, cy, 2.6, 0, TAU);
+      g.fill();
+    }
+  }
+}
+// Soft warm patches where the sun lands, and cool moss in the shade.
+export function paintDapples(g, size, rand) {
+  for (let i = 0; i < 16; i++) {
+    const x = rand() * size, y = rand() * size, r = 60 + rand() * 120;
+    const grad = g.createRadialGradient(x, y, 0, x, y, r);
+    const warm = i % 3 !== 0;
+    grad.addColorStop(0, warm ? 'rgba(246,226,140,0.22)' : 'rgba(46,92,60,0.2)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grad;
+    g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+}
+// A pebble-ish stepping stone, sometimes with a little cushion of moss.
+const mossMat = new THREE.MeshToonMaterial({ color: '#6aa646', gradientMap: ramp });
+export function steppingStone(stoneMat, rand) {
+  const g = new THREE.Group();
+  const geo = new THREE.SphereGeometry(1, 14, 8, 0, TAU, 0, Math.PI / 2);
+  const stone = new THREE.Mesh(geo, stoneMat);
+  stone.scale.set(1, 0.09, 1);
+  stone.receiveShadow = true;
+  g.add(stone);
+  if (rand() < 0.45) {
+    const moss = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 6, 0, TAU, 0, Math.PI / 2), mossMat);
+    const a = rand() * TAU;
+    moss.position.set(Math.cos(a) * 0.62, 0, Math.sin(a) * 0.62);
+    moss.scale.set(1, 0.32, 0.8);
+    g.add(moss);
+  }
+  return g;
+}
+
 // ---- Foliage ----
 // A wobbly sphere with baked colour: sunlit yellow-green on top, cool and a
 // little darker underneath. Use with a material that has vertexColors: true.

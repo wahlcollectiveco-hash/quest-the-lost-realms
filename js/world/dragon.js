@@ -3,7 +3,7 @@
 // (root, update, react, faceTowards), so a real rigged model can replace
 // this file later without changing callers.
 import * as THREE from 'three';
-import { toon } from './style.js';
+import { toon, rimToon } from './style.js';
 
 const V = THREE.Vector3;
 const std = (color, o = {}) => toon(color, o);
@@ -59,11 +59,13 @@ export function createDragon(def) {
   const c = def.colors;
   const b = def.build;
   const M = {
-    body: std(c.body),
-    belly: std(c.belly, { roughness: 0.85 }),
-    accent: std(c.accent, { roughness: 0.4, metalness: 0.15 }),
-    accentSoft: std(new THREE.Color(c.accent).lerp(new THREE.Color(c.body), 0.35), { roughness: 0.6 }),
-    wing: std(c.wing, { side: THREE.DoubleSide, roughness: 0.9 }),
+    // soft cel shading with a warm rim of light round the edges
+    body: rimToon(c.body),
+    belly: rimToon(c.belly, { strength: 0.3 }),
+    accent: rimToon(c.accent, { strength: 0.35 }),
+    accentSoft: rimToon(new THREE.Color(c.accent).lerp(new THREE.Color(c.body), 0.35), { strength: 0.35 }),
+    wing: rimToon(c.wing, { side: THREE.DoubleSide, strength: 0.5, power: 1.8 }),
+    blush: new THREE.MeshBasicMaterial({ color: 0xff9aa2, transparent: true, opacity: 0.35, depthWrite: false }),
     eye: std(c.eye, { roughness: 0.12 }),
     shine: new THREE.MeshBasicMaterial({ color: 0xffffff }),
     dark: std(0x2b2320),
@@ -92,7 +94,7 @@ export function createDragon(def) {
   for (let i = 0; i < 6; i++) {
     const th = 0.55 + i * 0.3;
     const s = 1 - i * 0.12;
-    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.07 * s, 0.2 * s, 8), M.accent);
+    const spike = new THREE.Mesh(new THREE.CapsuleGeometry(0.055 * s, 0.1 * s, 4, 10), M.accent); // soft rounded spikes
     spike.position.set(0, 0.95 + 0.72 * Math.cos(th), -0.66 * Math.sin(th));
     spike.rotation.x = -th;
     rig.add(spike);
@@ -131,17 +133,22 @@ export function createDragon(def) {
   for (const sx of [-1, 1]) {
     const eg = new THREE.Group();
     eg.position.set(0.19 * sx, 0.18, 0.31);
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.1, 20, 16), M.eye);
-    eye.scale.set(0.85, 1.08, 0.6);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.108, 22, 18), M.eye);
+    eye.scale.set(0.85, 1.1, 0.6);
     eg.add(eye);
-    const hl = new THREE.Mesh(new THREE.SphereGeometry(0.028, 10, 8), M.shine);
-    hl.position.set(0.025 * sx, 0.045, 0.05);
+    const hl = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 8), M.shine);
+    hl.position.set(0.025 * sx, 0.048, 0.052);
     eg.add(hl);
     const hl2 = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), M.shine);
     hl2.position.set(-0.03 * sx, -0.035, 0.055);
     eg.add(hl2);
     head.add(eg);
     eyes.push(eg);
+    // a soft rosy cheek under each eye
+    const cheek = new THREE.Mesh(new THREE.CircleGeometry(0.075, 18), M.blush);
+    cheek.position.set(0.25 * sx, 0.03, 0.36);
+    cheek.lookAt(cheek.position.clone().add(new V(0.55 * sx, -0.1, 1)));
+    head.add(cheek);
   }
 
   // Horns and head details per dragon
@@ -247,7 +254,7 @@ export function createDragon(def) {
   }
   const WING_BASE = { x: 0.35, y: 1.25, z: 0.3 };
 
-  root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  root.traverse((o) => { if (o.isMesh && o.material !== M.blush) { o.castShadow = true; o.receiveShadow = true; } });
   root.scale.setScalar(def.scale);
 
   // ---- Behaviour ----

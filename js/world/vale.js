@@ -4,7 +4,7 @@
 // and a few hidden spots.
 import * as THREE from 'three';
 import { rng, mat, mesh, blobGeo, canvas, tex, drawRune, drawRealm, undersideMat, VALE_CENTER } from './haven.js';
-import { ramp, toon, foliageGeo, leafMat, makeGrass, flowerGeo, flowerCentreGeo, makeWater } from './style.js';
+import { ramp, toon, foliageGeo, leafMat, makeGrass, flowerGeo, flowerCentreGeo, makeWater, paintPath, paintClover, paintDapples, steppingStone } from './style.js';
 import { easeOut } from './scene.js';
 
 const V = THREE.Vector3;
@@ -155,7 +155,9 @@ export function buildVale(world) {
     const [cx, cy] = toC(x, z);
     g.save(); g.filter = `blur(${blur}px)`; g.fillStyle = color; g.beginPath(); g.arc(cx, cy, (r / RI) * 512, 0, TAU); g.fill(); g.restore();
   };
-  stroke(pathPts, 40, '#e2cc98dd', 8);
+  paintDapples(g, 1024, rand);
+  for (let i = 0; i < 12; i++) paintClover(g, R(60, 964), R(60, 964), R(18, 34), rand);
+  paintPath(g, pathPts, toC, 40, rand);
   stroke(streamPts, 70, '#e0cf9c', 6);
   disc(...L.pool, L.poolR + 0.6, '#e6d49e');
   disc(...L.ruins, 3.9, '#cdc2a6', 10);
@@ -272,9 +274,11 @@ export function buildVale(world) {
   for (let i = 0; i <= 20; i++) {
     const p = pathCurve.getPointAt(i / 20);
     if (minDist(streamPts, p.x, p.z) < 1.1) continue;
-    group.add(mesh(new THREE.CylinderGeometry(1, 1.05, 0.08, 9), pick(pathStone), {
-      pos: [p.x + R(-0.15, 0.15), 0.035, p.z + R(-0.12, 0.12)], rot: [0, R(0, 3), 0], scale: [R(0.36, 0.48), 1, R(0.3, 0.42)], cast: false,
-    }));
+    const st = steppingStone(pick(pathStone), rand);
+    st.position.set(p.x + R(-0.15, 0.15), 0.01, p.z + R(-0.12, 0.12));
+    st.rotation.y = R(0, 3);
+    st.scale.set(R(0.38, 0.5), 1, R(0.32, 0.44));
+    group.add(st);
   }
 
   // ---- Arrival waystone circle ----
@@ -579,6 +583,34 @@ export function buildVale(world) {
       f.wings[1].rotation.z = -flap;
     }
   });
+
+  // ---- Atmosphere: mist rising off the waterfall's pool ----
+  {
+    const [mc2, mg2] = canvas(128, 128);
+    const grad = mg2.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grad.addColorStop(0, 'rgba(255,255,255,0.7)');
+    grad.addColorStop(0.55, 'rgba(245,248,255,0.3)');
+    grad.addColorStop(1, 'rgba(240,245,255,0)');
+    mg2.fillStyle = grad;
+    mg2.fillRect(0, 0, 128, 128);
+    const mistTex = tex(mc2);
+    const mist = Array.from({ length: 12 }, (_, i) => {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, transparent: true, depthWrite: false, color: '#f4f2ff' }));
+      sp.userData = { ph: i / 12, a: R(0, TAU), r: R(0.4, 2.4) };
+      group.add(sp);
+      return sp;
+    });
+    updaters.push((t) => {
+      for (const sp of mist) {
+        const u = sp.userData;
+        const p = (t * 0.035 + u.ph) % 1;
+        const a = u.a + t * 0.05;
+        sp.position.set(L.pool[0] + Math.cos(a) * (u.r + p * 1.8), 0.3 + p * 2.6, L.pool[1] + Math.sin(a) * (u.r + p * 1.4) + p * 1.2);
+        sp.scale.setScalar(2.2 + p * 3.4);
+        sp.material.opacity = Math.sin(Math.PI * p) * 0.42;
+      }
+    });
+  }
 
   world.addUpdater((t, dt) => { for (const u of updaters) u(t, dt); });
 

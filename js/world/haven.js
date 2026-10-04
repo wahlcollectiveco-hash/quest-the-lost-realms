@@ -2,7 +2,7 @@
 // Style target: simple, soft shapes lit by warm golden light, with magic
 // glow used only on the Ancient Door, the egg and a few drifting motes.
 import * as THREE from 'three';
-import { ENV, ramp, toon, foliageGeo, leafMat, makeGrass, flowerGeo, flowerCentreGeo, makeWater, paintCloud } from './style.js';
+import { ENV, ramp, toon, foliageGeo, leafMat, makeGrass, flowerGeo, flowerCentreGeo, makeWater, paintCloud, paintPath, paintClover, paintDapples, steppingStone } from './style.js';
 
 const V = THREE.Vector3;
 const TAU = Math.PI * 2;
@@ -373,8 +373,10 @@ export function buildHaven(world, { say, sanctuary }) {
     g.stroke();
     g.restore();
   };
-  strokeCurve(samples(pathCurve, 60), 46, '#e2cc98dd', 8);
-  strokeCurve(samples(cottagePath, 24), 40, '#e2cc98dd', 8);
+  paintDapples(g, 1024, rand);
+  for (let i = 0; i < 14; i++) paintClover(g, R(60, 964), R(60, 964), R(18, 34), rand);
+  paintPath(g, samples(pathCurve, 60), toC, 46, rand);
+  paintPath(g, samples(cottagePath, 24), toC, 40, rand);
   strokeCurve(streamPts, 64, '#e0cf9c', 6);
   const disc = (x, z, r, color, blur = 6) => {
     const [cx, cy] = toC(x, z);
@@ -586,9 +588,11 @@ export function buildHaven(world, { say, sanctuary }) {
   const placeStones = (curve, n) => {
     for (let i = 0; i <= n; i++) {
       const p = curve.getPointAt(i / n);
-      group.add(mesh(new THREE.CylinderGeometry(1, 1.05, 0.08, 9), pick(pathStone), {
-        pos: [p.x + R(-0.15, 0.15), 0.035, p.z + R(-0.12, 0.12)], rot: [0, R(0, 3), 0], scale: [R(0.34, 0.46), 1, R(0.3, 0.4)], cast: false,
-      }));
+      const st = steppingStone(pick(pathStone), rand);
+      st.position.set(p.x + R(-0.15, 0.15), 0.01, p.z + R(-0.12, 0.12));
+      st.rotation.y = R(0, 3);
+      st.scale.set(R(0.36, 0.48), 1, R(0.3, 0.42));
+      group.add(st);
     }
   };
   placeStones(pathCurve, 22);
@@ -1182,6 +1186,32 @@ export function buildHaven(world, { say, sanctuary }) {
   door.add(doorLight);
   door.lookAt(sanctuary.face.x, sanctuary.door.y, sanctuary.face.z);
   scene.add(door);
+  // A warm halo glowing in the ring of symbols, brighter as the Door wakes.
+  const doorHaloTex = (() => {
+    const [hc, hg] = canvas(128, 128);
+    const grad = hg.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grad.addColorStop(0, 'rgba(255,226,160,0.85)');
+    grad.addColorStop(0.4, 'rgba(255,206,130,0.3)');
+    grad.addColorStop(1, 'rgba(255,190,110,0)');
+    hg.fillStyle = grad;
+    hg.fillRect(0, 0, 128, 128);
+    return tex(hc);
+  })();
+  const doorHalo = new THREE.Sprite(new THREE.SpriteMaterial({ map: doorHaloTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+  doorHalo.position.set(0, 3.45, 0.4);
+  doorHalo.scale.setScalar(5.5);
+  door.add(doorHalo);
+  // Golden motes drifting in front of the Door.
+  const doorMotes = (() => {
+    const N = 36;
+    const pos = new Float32Array(N * 3);
+    const base = Array.from({ length: N }, () => [R(-3.2, 3.2), R(0.6, 6), R(0.4, 4.2), R(0, TAU)]);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.2, map: doorHaloTex, color: new THREE.Color(1, 0.86, 0.55).multiplyScalar(2.2), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    door.add(pts);
+    return { pos, base, geo, N };
+  })();
   let doorPulse = 0;
   let doorAwake = 0; // 0..1, blazes during the opening moment
   updaters.push((t, dt) => {
@@ -1191,6 +1221,14 @@ export function buildHaven(world, { say, sanctuary }) {
     doorSurfaceMat.emissiveIntensity = base + doorPulse * 1.6 + doorAwake * 2.5;
     doorLight.intensity = 3 + n * 1.2 + base * 3 + doorPulse * 14 + doorAwake * 25;
     pillarRuneMat.opacity = Math.min(1, 0.35 + n * 0.06 + 0.25 * Math.sin(t * 0.9 + 1) + doorPulse * 0.3 + doorAwake);
+    doorHalo.material.opacity = Math.min(1, 0.28 + n * 0.25 + 0.06 * Math.sin(t * 0.8) + doorPulse * 0.6 + doorAwake * 0.8 + (doorFocus >= 0 ? 0.25 : 0));
+    for (let i = 0; i < doorMotes.N; i++) {
+      const [x, y, z, ph] = doorMotes.base[i];
+      doorMotes.pos[i * 3] = x + Math.sin(t * 0.3 + ph) * 0.4;
+      doorMotes.pos[i * 3 + 1] = y + Math.sin(t * 0.45 + ph * 2) * 0.35;
+      doorMotes.pos[i * 3 + 2] = z + Math.cos(t * 0.25 + ph) * 0.4;
+    }
+    doorMotes.geo.attributes.position.needsUpdate = true;
   });
   // Two soft eyes that can open inside the stone.
   const [ec2, eg2] = canvas(128, 64);
