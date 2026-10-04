@@ -100,7 +100,7 @@ export function createWorld(canvas) {
     return new Promise((res) => tweens.add({ s: 0, dur, fn, ease, res }));
   }
 
-  let flying = 0;
+  let flying = 0; // while > 0, the orbit controls keep their hands off the camera
   let reducedMotion = false;
   async function flyTo(pos, target, dur = 1.8) {
     if (reducedMotion) dur = Math.min(dur, 0.45);
@@ -218,6 +218,8 @@ export function createWorld(canvas) {
     onDoubleTap(fn) { doubleTapHandler = fn; },
     groundPoint,
     // Where a point in the world lands on screen (CSS pixels).
+    // Someone else is steering the camera (e.g. following the dragon in flight).
+    holdCamera(on) { flying = Math.max(0, flying + (on ? 1 : -1)); },
     toScreen(v) {
       const p = v.clone().project(camera);
       const r = canvas.getBoundingClientRect();

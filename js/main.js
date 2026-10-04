@@ -811,10 +811,13 @@ world.addUpdater((t, dt) => {
   if (!chase || !companion) return;
   const d = companion.root;
   const fwd = new THREE.Vector3(Math.sin(d.rotation.y), 0, Math.cos(d.rotation.y));
-  const want = d.position.clone().addScaledVector(fwd, -6.5).add(new THREE.Vector3(0, 2.4, 0));
+  // far enough back to see the dragon, the sky and where you're headed
+  // (a tall phone screen sees less side to side, so the camera sits further back there)
+  const back = Math.min(2.1, Math.max(1, 0.95 / world.aspect));
+  const want = d.position.clone().addScaledVector(fwd, -11 * back).add(new THREE.Vector3(0, 4.2 * Math.sqrt(back), 0));
   const k = 1 - Math.exp(-dt * chase.stiff);
   world.camera.position.lerp(want, k);
-  world.controls.target.lerp(d.position.clone().addScaledVector(fwd, 3).add(new THREE.Vector3(0, 0.8, 0)), k);
+  world.controls.target.lerp(d.position.clone().addScaledVector(fwd, 5).add(new THREE.Vector3(0, 0.6, 0)), k);
   world.camera.lookAt(world.controls.target);
   chase.stiff = Math.min(3.2, chase.stiff + dt * 1.2); // ease into the chase
   // a hatchling flying home with you keeps close, just behind and to the side
@@ -828,12 +831,17 @@ world.addUpdater((t, dt) => {
 });
 async function flyAlong(trip, lightFocus, bounds, radius) {
   chase = { stiff: 0.4 };
+  world.holdCamera(true); // the orbit controls mustn't tug the camera back mid-flight
   updateNews();
   sfx.whoosh();
   // halfway there, the light moves to where you're going
   setTimeout(() => { haven.setLightFocus(lightFocus); world.setBounds(bounds, radius); }, 3500);
-  await trip;
-  chase = null;
+  try {
+    await trip;
+  } finally {
+    chase = null;
+    world.holdCamera(false);
+  }
 }
 
 async function travelToVale() {
