@@ -380,6 +380,7 @@ function completionLine() {
 // Finishing a Quest plays a short "clip": the camera zooms in on your dragon
 // doing its special move, then on the egg warming, then on any reward as it
 // appears. Clips can be skipped, and can be turned off in Settings.
+let hatching = false;
 let clipPlaying = false;
 let clipsWaiting = 0; // clips playing or queued
 let clipSkip = false;
@@ -387,8 +388,12 @@ let clipChain = Promise.resolve();
 const calmQueue = [];
 // Run something once no clip is playing (so news never talks over a clip).
 function whenCalm(fn) {
-  if (clipsWaiting > 0) calmQueue.push(fn);
-  else setTimeout(fn, 500);
+  if (clipsWaiting > 0 || hatching) calmQueue.push(fn);
+  else setTimeout(() => (clipsWaiting > 0 || hatching ? calmQueue.push(fn) : fn()), 500);
+}
+function flushCalm() {
+  if (clipsWaiting > 0 || hatching) return;
+  while (calmQueue.length) setTimeout(calmQueue.shift(), 900);
 }
 const clipsOn = () => settings().clips !== false && !prefersReducedMotion();
 const cwait = (ms) => (clipSkip ? Promise.resolve() : wait(ms));
@@ -1029,7 +1034,6 @@ const story = createStory({
 });
 subscribe(() => story.check());
 
-let hatching = false;
 async function hatchSequence() {
   if (hatching || !eggReady() || !companion || where !== 'haven') return;
   hatching = true;
@@ -1064,6 +1068,8 @@ async function hatchSequence() {
   goTo('haven', 2.2);
   hatching = false;
   nextWishNote();
+  flushCalm(); // news that arrived during the hatching comes after it
+  setTimeout(placeNext, 3000); // and anything waiting to be placed
 }
 
 // ---- Focus Quests ----

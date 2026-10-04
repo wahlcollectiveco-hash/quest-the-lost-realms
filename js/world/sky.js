@@ -38,7 +38,7 @@ export function buildSkyRoute(world, from, to) {
     g.add(isle);
   }
   // soft clouds to fly through
-  const CLOUDS = [[0.15, -4, 5, 9], [0.33, 5, 7, 12], [0.47, -3, 4, 8], [0.6, 6, 8, 11], [0.75, -8, 6, 10], [0.9, 3, 7, 9]];
+  const CLOUDS = [[0.15, -4, 5, 9], [0.33, 5, 7, 12], [0.47, -3, 4, 8], [0.6, 6, 8, 11], [0.74, -10, 6, 10]];
   CLOUDS.forEach(([k, off, h, w], i) => {
     const m = new THREE.MeshBasicMaterial({ map: paintCloud(i + 2), transparent: true, depthWrite: false, opacity: 0.85, side: THREE.DoubleSide });
     const c = new THREE.Mesh(new THREE.PlaneGeometry(w, w * 0.5), m);

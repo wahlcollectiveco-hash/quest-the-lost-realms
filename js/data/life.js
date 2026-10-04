@@ -20,7 +20,7 @@ export const VISITORS = [
   { id: 'hedgehog', icon: '🦔', name: 'Thistle', species: 'hedgehog', home: [3.0, 5.4], kind: 'walk',
     hello: 'Oh! Hello. Is this a good place for a hedgehog? It looks like a good place for a hedgehog.',
     lines: ['Thistle is snuffling for beetles.', 'Thistle curls into a ball, then peeks out.', 'Thistle found a very nice leaf.'] },
-  { id: 'bunny', icon: '🐰', name: 'Biscuit', species: 'bunny', home: [-6.2, 4.4], kind: 'hop',
+  { id: 'bunny', icon: '🐰', name: 'Biscuit', species: 'bunny', home: [-2.2, 7.4], kind: 'hop',
     hello: 'Hi hi hi! I heard there was clover here. Can I stay?',
     lines: ['Biscuit wiggles her nose at you.', 'Biscuit does a little sideways hop.', 'Biscuit is munching clover, very seriously.'] },
   { id: 'frog', icon: '🐸', name: 'Pondsworth', species: 'frog', home: [4.0, 3.6], kind: 'hop',
