@@ -18,12 +18,12 @@ function glyph(i, lit, size = 64) {
   return c.toDataURL();
 }
 
-export function openDoorPanel({ onOpen, onVale, here = true }) {
+export function openDoorPanel({ onOpen, onVale, onThrough, here = true }) {
   const lit = litRunes();
   const steps = starSteps();
   const ready = starReady();
   const intro = state.realm.doorOpened
-    ? 'The Star glows. The Door has shown you a glimpse of the Realm of Stars.'
+    ? 'The Star glows, and the Door stands open. Beyond it lies the Realm of Stars.'
     : ready
       ? 'The Star is glowing. The Door is ready to open.'
       : 'Seven symbols, one for each realm behind the Door. Your egg carries the Star. Wake it, and the Door will open the way to the Realm of Stars.';
@@ -45,15 +45,22 @@ export function openDoorPanel({ onOpen, onVale, here = true }) {
             </ul>
           </div>
         </li>
-        ${REALMS.slice(1).map((r, k) => `
-          <li class="later">
+        ${REALMS.slice(1).map((r, k) => {
+          const wave = k === 0 && state.stars?.met?.singers;
+          const meta = wave
+            ? (state.stars?.eggHatched ? 'A realm of the sea. Its hatchling remembers water all around.' : 'Carved on the egg the star-singers are keeping.')
+            : 'A realm not yet known.';
+          return `
+          <li class="${wave ? 'next' : 'later'}">
             <img src="${glyph(k + 1, false)}" alt="" width="36" height="36">
-            <div class="t-info"><span class="t-name">${esc(r.symbol)}</span><span class="t-meta">A realm not yet known.</span></div>
-          </li>`).join('')}
+            <div class="t-info">${wave ? '<span class="t-eyebrow">Next</span>' : ''}<span class="t-name">${esc(r.symbol)}</span><span class="t-meta">${esc(meta)}</span></div>
+          </li>`;
+        }).join('')}
       </ol>
       <div class="detail-actions">
         ${!here ? '<button class="btn ghost" data-d="vale">Fly to Dragon Haven</button>' : ''}
-        ${ready && here ? `<button class="btn primary glow" data-d="open">${state.realm.doorOpened ? 'Look beyond again' : 'Open the Door'}</button>` : ''}
+        ${ready && here && !state.realm.doorOpened ? '<button class="btn primary glow" data-d="open">Open the Door</button>' : ''}
+        ${state.realm.doorOpened && here ? '<button class="btn primary glow" data-d="through">Step through to the Realm of Stars</button>' : ''}
       </div>
     </div>`, { className: 'detail', label: 'The Ancient Door' });
   m.el.addEventListener('click', (e) => {
@@ -61,5 +68,6 @@ export function openDoorPanel({ onOpen, onVale, here = true }) {
     if (act === 'close') m.close();
     if (act === 'vale') { m.close(); onVale(); }
     if (act === 'open') { m.close(); onOpen(); }
+    if (act === 'through') { m.close(); onThrough?.(); }
   });
 }

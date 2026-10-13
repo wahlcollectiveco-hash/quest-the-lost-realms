@@ -40,6 +40,9 @@ const SLOTS = {
   'stone-guardian': [-2.7, 0.3, -8.2, 0.3],
   'flower-arch': [0, 0, -5.0, 0],
   'picnic-blanket': [2.4, 0.02, -0.6, 0.4],
+  'star-flowers': [-1.2, 0, 4.6, 0],
+  'crystal-cluster': [4.4, 0, -2.4, 0.3],
+  'star-lantern': [1.4, 0, 1.8, 0],
   glowcaps: [-1.4, 0, -6.6, 0],
 };
 
@@ -261,6 +264,41 @@ const BUILDERS = {
     add(g, new THREE.SphereGeometry(0.06, 10, 8), mat('#c9402f', { roughness: 0.45 }), [0.1, 0.06, 0.25]);
     return g;
   },
+
+  // ---- From the Realm of Stars ----
+  'star-flowers'() {
+    const glow = new THREE.MeshStandardMaterial({ color: '#e6eeff', emissive: '#a9c4ff', emissiveIntensity: 1.3, roughness: 0.4 });
+    const g = patch(10, 0.6, (f, h) => {
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * TAU;
+        add(f, new THREE.ConeGeometry(0.03, 0.11, 4), glow, [Math.cos(a) * 0.05, h, Math.sin(a) * 0.05], [0, -a, Math.PI / 2]);
+      }
+      add(f, new THREE.SphereGeometry(0.03, 8, 6), mat('#fff3c4', { emissive: '#ffe08a', emissiveIntensity: 1.2 }), [0, h + 0.01, 0]);
+    });
+    g.userData.glow = glow;
+    return g;
+  },
+  'crystal-cluster'() {
+    const g = new THREE.Group();
+    const c = new THREE.MeshStandardMaterial({ color: '#cbbcff', emissive: '#9f8cff', emissiveIntensity: 0.9, roughness: 0.25, transparent: true, opacity: 0.92 });
+    for (let i = 0; i < 6; i++) {
+      const h = i === 0 ? 1.3 : R(0.5, 0.9);
+      add(g, new THREE.CylinderGeometry(0, i === 0 ? 0.2 : 0.12, h, 6), c, [i === 0 ? 0 : R(-0.3, 0.3), h / 2, i === 0 ? 0 : R(-0.3, 0.3)], [i === 0 ? 0 : R(-0.35, 0.35), R(0, 3), i === 0 ? 0 : R(-0.35, 0.35)]);
+    }
+    add(g, new THREE.CylinderGeometry(0.42, 0.5, 0.14, 7), mat('#6d6a88'), [0, 0.07, 0]);
+    g.userData.crystal = c;
+    return g;
+  },
+  'star-lantern'() {
+    const g = new THREE.Group();
+    const iron = mat('#4a4458');
+    add(g, new THREE.CylinderGeometry(0.04, 0.05, 1.5, 6), iron, [0, 0.75, 0]);
+    add(g, new THREE.TorusGeometry(0.16, 0.02, 6, 16, Math.PI), iron, [0.16, 1.5, 0], [0, 0, 0]);
+    const glass = new THREE.MeshStandardMaterial({ color: '#fff4cc', emissive: '#ffd77a', emissiveIntensity: 1.8, roughness: 0.3 });
+    add(g, new THREE.OctahedronGeometry(0.14, 0), glass, [0.32, 1.3, 0], [0, 0, 0], [1, 1.3, 1]);
+    g.userData.glass = glass;
+    return g;
+  },
 };
 
 function glowTexture() {
@@ -396,6 +434,12 @@ export function createGarden(world, haven) {
     if (chime) chime.userData.chime.rotation.z = Math.sin(t * 1.7) * 0.12;
     const moon = placed.get('moonpetal');
     if (moon) moon.userData.glow.emissiveIntensity = 0.8 + 0.4 * Math.sin(t * 1.2);
+    const sf = placed.get('star-flowers');
+    if (sf) sf.userData.glow.emissiveIntensity = 1.1 + 0.35 * Math.sin(t * 1.4);
+    const cc = placed.get('crystal-cluster');
+    if (cc) cc.userData.crystal.emissiveIntensity = 0.8 + 0.25 * Math.sin(t * 0.9);
+    const sl = placed.get('star-lantern');
+    if (sl) sl.userData.glass.emissiveIntensity = 1.6 + 0.3 * Math.sin(t * 2.1);
     const bath = placed.get('bird-bath');
     if (bath) bath.userData.bird.rotation.y = Math.sin(t * 0.7) > 0.6 ? 0.8 : -0.3;
   });

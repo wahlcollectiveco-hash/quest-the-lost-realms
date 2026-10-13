@@ -40,6 +40,13 @@ export const CATALOG = [
   { id: 'flower-arch', kind: 'decoration', name: 'Flower Arch', desc: 'Roses climb over the garden path.', color: '#e79ab4' },
   { id: 'picnic-blanket', kind: 'decoration', name: 'Picnic Blanket', desc: 'For slow, lazy afternoons.', color: '#d9776a' },
 
+  // From the Realm of Stars (found once the Door has opened)
+  { id: 'star-flowers', kind: 'flower', realm: 'stars', name: 'Star-flowers', desc: 'Little flowers that glow like fallen stars.', color: '#cfe0ff' },
+  { id: 'crystal-cluster', kind: 'decoration', realm: 'stars', name: 'Crystal Cluster', desc: 'A small cluster of star crystal. It hums very quietly.', color: '#b9a6ff' },
+  { id: 'star-lantern', kind: 'decoration', realm: 'stars', name: 'Star Lantern', desc: 'Holds a little piece of starlight, all night long.', color: '#ffe6a0' },
+  { id: 'star-shard', kind: 'treasure', realm: 'stars', name: 'Star Shard', desc: 'A sliver of a fallen star, still faintly warm.', color: '#fff2c4' },
+  { id: 'comet-pebble', kind: 'treasure', realm: 'stars', name: 'Comet Pebble', desc: 'Smooth and silver, with a faint trail of light.', color: '#c9d4ee' },
+
   // Hidden in Verdant Vale (found by exploring, never by chance)
   { id: 'vale-crystal', kind: 'treasure', special: true, name: 'Grotto Crystal', desc: 'Found behind the great waterfall. It hums whenever the Door does.', color: '#9fc4ff' },
   { id: 'owl-feather', kind: 'treasure', special: true, name: 'Silver Owl Feather', desc: 'Tucked inside the hollow tree, as if someone left it for you.', color: '#cfd3dc' },

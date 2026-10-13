@@ -260,7 +260,7 @@ export function createStory({ world, haven, director, getCompanion, getWhere, te
       await haven.door.showGlimpse(d(1.8));
       await text('Beyond the Door: the Realm of Stars. Tiny lights drift everywhere, like slow snow, and somewhere far off, someone is humming.');
       if (state.creatures.length) await text(`Back home, ${babyName()} looks up at the sky and chirps, as if they heard it too.`);
-      await text('Then, softly, the Door closes. Not yet… but soon.');
+      await text('The light settles. The Door stays open, just a crack, humming softly. Whenever you’re ready, you can step through.');
       await haven.door.hideGlimpse(d(1.8));
       markDoorOpened();
     },

@@ -69,7 +69,9 @@ function pickGift() {
   log.count++;
   const nextStory = PROGRESSION.map(byId).find((it) => !state.found[it.id]);
   if (nextStory && log.count % 3 === 2) return { type: 'item', item: nextStory };
-  const free = (kinds) => CATALOG.filter((c) => !c.special && kinds.includes(c.kind) && !state.found[c.id]);
+  // Things from a realm only turn up once that realm has opened.
+  const open = (c) => !c.realm || (c.realm === 'stars' && state.realm.doorOpened);
+  const free = (kinds) => CATALOG.filter((c) => !c.special && open(c) && kinds.includes(c.kind) && !state.found[c.id]);
   const havenItems = free(['flower', 'decoration']);
   const treasures = free(['treasure']);
   // The very first reward is something for your home, so it starts to feel like yours.

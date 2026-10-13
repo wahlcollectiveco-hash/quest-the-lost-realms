@@ -4,6 +4,11 @@ import * as THREE from 'three';
 import { createWorld, easeOut } from './world/scene.js';
 import { buildHaven, VALE_CENTER } from './world/haven.js';
 import { buildVale, SANCTUARY } from './world/vale.js';
+import { buildStars, STARS_CENTER, starsWalkable } from './world/stars.js';
+import {
+  STAR_COUNT, starsOpen, starsLit, starEggReady, starEggHatched, relightStar, unseenStars, markStarsSeen,
+  hatchStarEgg, singerLines, luneLines, WAVE_MEMORIES,
+} from './starsRealm.js';
 import { openDoorPanel } from './ui/door.js';
 import { createStory } from './story.js';
 import { audio, sfx } from './audio.js';
@@ -25,7 +30,8 @@ import { byId, inHaven } from './data/discoveries.js';
 import {
   rewardQuest, eggFraction, eggPalette, eggReady, eggStage, eggNeed, hatchEgg, foundOf, openChest, grant, placeItem, storeItem,
 } from './rewards.js';
-import { $, $$, esc, say, tell, ask, celebrate, hideCelebrate, pauseTells, resumeTells } from './ui/common.js';
+import { $, $$, esc, say, tell, ask, celebrate, hideCelebrate, pauseTells, resumeTells, openModal } from './ui/common.js';
+import { talk } from './ui/dialogue.js';
 import { GIFTS, raising, wishText, eggInsight, wishProgress, startRaising, hasEgg, settleOldSave } from './wishes.js';
 import { createAbilities, ABILITY_LINES } from './world/abilities.js';
 import { createFlowerTrail } from './world/trail.js';
@@ -38,9 +44,13 @@ import { createCare } from './care.js';
 import { buildSkyRoute } from './world/sky.js';
 import { STAR_MEMORIES } from './data/life.js';
 
+// Where you are ('haven' = home, 'vale' = Dragon Haven, 'stars' = the Realm of Stars), and whether a scene is playing.
+let where = 'haven';
+let busy = false;
 const world = createWorld($('#world'));
 const haven = buildHaven(world, { say, sanctuary: SANCTUARY });
 const vale = buildVale(world);
+const stars = buildStars(world);
 const abilities = createAbilities(world);
 // Each dragon leaves a little trail where they walk and rest: Pebble flowers,
 // Ash flames, Moon clouds and sparkles. (Meadows stay calmer for Pebble.)
@@ -49,7 +59,7 @@ const trail = createFlowerTrail(world, {
     const screen = document.body.dataset.screen;
     return companion && screen !== 'select' && screen !== 'welcome' ? companion : null;
   },
-  getGroundY: () => (where === 'vale' ? VALE_CENTER.y : 0),
+  getGroundY: () => groundHere(),
 });
 function applyMeadow() {
   const f = state.dragon === 'pebble' ? 0.3 : 0.6;
@@ -61,6 +71,8 @@ applySettings({ world, audio });
 
 // Time of day follows the real clock (or stays golden afternoon).
 function updateTimeOfDay() {
+  // the Realm of Stars is always a starry night
+  if (where === 'stars') { haven.setStarlight(); audio.setNight(true); return; }
   const now = new Date();
   const hour = settings().timeOfDay ? now.getHours() + now.getMinutes() / 60 : 17.5;
   audio.setNight(haven.setTimeOfDay(hour) > 0.6);
@@ -91,7 +103,7 @@ const moments = createMoments({
   getCompanion: () => companion,
   getWhere: () => where,
   isBusy: () => busy || touring,
-  walkable: (x, z) => (where === 'vale' ? valeWalkable(x, z) : havenWalkable(x, z)),
+  walkable: (x, z) => walkableHere(x, z),
   onStartFocus: (id) => focus.begin(id),
   onNewQuest: () => $('#new-quest').click(),
   // Helping your dragon warms the egg a little (once a day).
@@ -106,6 +118,11 @@ const moments = createMoments({
 
 // Saves from before the move to Dragon Haven: one egg per realm now.
 settleOldSave();
+
+// The Realm of Stars as you left it.
+stars.setLit(Math.min(state.stars?.shown || 0, starsLit()));
+stars.setWarmth(starsLit() / STAR_COUNT);
+if (starEggHatched()) stars.hideEgg();
 
 // Bring back everything discovered so far.
 for (const id of Object.keys(state.found)) if (inHaven(byId(id) || {}) && !(state.unplaced || []).includes(id)) garden.place(id);
@@ -123,7 +140,11 @@ const VIEWS = {
   select: { dir: [0, 0.2, 1], dist: 9.2, target: [0, 0.75, 5.0], fit: 0.62 },
   haven: { dir: [0.08, 0.38, 0.9], dist: 23, target: [-0.3, 1.1, -1.6], fit: 0.85 },
   vale: { dir: [0.06, 0.55, 0.84], dist: 33, target: [VALE_CENTER.x, VALE_CENTER.y + 0.8, VALE_CENTER.z + 0.5], fit: 0.85 },
+  stars: { dir: [0, 0.3, 0.95], dist: 27, target: [STARS_CENTER.x, STARS_CENTER.y + 3.2, STARS_CENTER.z - 1.5], fit: 0.85 },
 };
+// Where the ground is, and where a dragon can stand, wherever you are.
+const groundHere = () => (where === 'vale' ? VALE_CENTER.y : where === 'stars' ? STARS_CENTER.y : 0);
+const walkableHere = (x, z) => (where === 'vale' ? valeWalkable(x, z) : where === 'stars' ? starsWalkable(x, z) : havenWalkable(x, z));
 function view(name) {
   const v = VIEWS[name];
   const dist = v.dist * Math.max(1, v.fit / world.aspect);
@@ -624,6 +645,7 @@ function onComplete(q, { focusMinutes = 0, prefix = '' } = {}) {
   if (willClip) clipsWaiting++; // counted before rewards are saved, so news waits for the clip
   const r = rewardQuest(q, { focusMinutes });
   const granted = r ? wishProgress({ quests: 1, focus: focusMinutes }) : null;
+  if (r) relightForQuest();
   sfx.complete();
   if (clipPlaying) clipSkip = true; // finishing several in a row: hurry the earlier clip along
   if (!willClip) {
@@ -788,7 +810,7 @@ function refreshDoor(announce = true) {
 
 function showDoorPanel() {
   haven.door.pulse();
-  openDoorPanel({ onOpen: openDoorSequence, onVale: travelToVale, here: where === 'vale' });
+  openDoorPanel({ onOpen: openDoorSequence, onVale: travelToVale, onThrough: enterStars, here: where === 'vale' });
 }
 world.onTap(haven.door.object, () => {
   if (where !== 'vale' || busy) return;
@@ -801,8 +823,6 @@ function openDoorSequence() {
 }
 
 // ---- Flying between home and Dragon Haven ----
-let where = 'haven';
-let busy = false;
 const HAVEN_CENTER = new THREE.Vector3(0, 0, 0);
 
 // While flying, the camera rides just behind and above your dragon.
@@ -895,8 +915,230 @@ async function returnToHaven({ baby = null } = {}) {
   if (!b) say('Home again. Your Quests are right where you left them.', 3600);
   updateNews();
 }
-$('#vale-btn').addEventListener('click', travelToVale);
+$('#vale-btn').addEventListener('click', () => (starsOpen() ? chooseDestination() : travelToVale()));
 $('#return-btn').addEventListener('click', () => returnToHaven());
+
+// ---- The Realm of Stars ----
+// Through the open Door from Dragon Haven, or straight from home once you've
+// been. Stepping between realms is a soft fade through starlight.
+function fade(on) {
+  const el = $('#realm-fade');
+  el.classList.toggle('on', on);
+  return wait(on ? 900 : 700);
+}
+function chooseDestination() {
+  if (busy || where !== 'haven') return;
+  const m = openModal(`
+    <div class="places">
+      <div class="detail-head"><h2>Where to?</h2><button class="icon-btn small" data-go="close" aria-label="Close">✕</button></div>
+      <button class="place-btn" data-go="vale"><b>Dragon Haven</b><span>The Ancient Door, Quill, and the old chest</span></button>
+      <button class="place-btn stars" data-go="stars"><b>The Realm of Stars</b><span>${starEggHatched() ? 'Where the star-singers hum' : `${starsLit()} of ${STAR_COUNT} stars relit`}</span></button>
+    </div>`, { className: 'detail', label: 'Where to?' });
+  m.el.addEventListener('click', (e) => {
+    const go = e.target.closest('[data-go]')?.dataset.go;
+    if (!go) return;
+    m.close();
+    if (go === 'vale') travelToVale();
+    if (go === 'stars') enterStars();
+  });
+}
+
+// Step into the Realm of Stars (from Dragon Haven, through the Door; or from home).
+async function enterStars() {
+  if (busy || where === 'stars' || !companion || !starsOpen()) return;
+  busy = true;
+  collection.hideDiscovery();
+  questUI?.setSheet('peek');
+  setScreen('travel');
+  world.controls.enabled = false;
+  if (where === 'vale') {
+    // walk up to the Door; it blazes, and you step into the light
+    const f = haven.door.front;
+    director.walkTo(companion, new THREE.Vector3(f.x, f.y, f.z));
+    const ring = haven.door.object.position.clone().add(new THREE.Vector3(0, 3.4, 0));
+    await world.flyTo(ring.clone().add(new THREE.Vector3(0, -0.6, 7)).toArray(), ring.toArray(), 2.4);
+    haven.door.pulse();
+    haven.door.awaken(1.2);
+    sfx.door();
+    await world.flyTo(ring.clone().add(new THREE.Vector3(0, -0.4, 1.6)).toArray(), ring.toArray(), 1.4);
+  } else {
+    sfx.whoosh();
+  }
+  await fade(true);
+  haven.door.awaken(0.01);
+  haven.door.hideGlimpse(0.01);
+  where = 'stars';
+  director.teleport(companion, stars.arrive);
+  companion.faceTowards(stars.center.x, stars.center.z);
+  haven.setLightFocus(STARS_CENTER);
+  world.setBounds(STARS_CENTER, 9);
+  updateTimeOfDay();
+  audio.setLocation('stars');
+  const v = view('stars');
+  world.controls.maxDistance = Math.max(36, v.dist * 1.3);
+  const start = v.target.map((t, i) => t + [0, 1.5, 6][i]);
+  world.camera.position.set(v.pos[0], v.pos[1] + 4, v.pos[2] + 8);
+  world.controls.target.set(...start);
+  await fade(false);
+  await world.flyTo(v.pos, v.target, 2.6);
+  setScreen('stars');
+  world.controls.enabled = true;
+  busy = false;
+  const first = !state.stars?.met?.realm;
+  if (first) {
+    state.stars.met.realm = true;
+    save();
+    tell('The Realm of Stars. It’s quiet here, and very old. Look up: some of the stars have gone dark. The star-singers are humming by their nest.');
+  }
+  // light any stars you relit while you were away
+  const { from, to } = unseenStars();
+  if (to > from) await lookUpAtStars(from, to, first ? 1400 : 600);
+  updateNews();
+}
+
+// Look up at the sky while newly relit stars come on, one by one.
+async function lookUpAtStars(from, to, delay = 0) {
+  busy = true;
+  await wait(delay);
+  const back = { pos: world.camera.position.toArray(), target: world.controls.target.toArray() };
+  const c = stars.skyCentre();
+  world.controls.enabled = false;
+  await world.flyTo([c.x, c.y - 4, c.z + 34], [c.x, c.y, c.z], 2.0);
+  say(to - from === 1 ? 'A star you relit comes back to life.' : `${to - from} stars you relit come back to life.`, 4200);
+  await stars.setLit(to, from);
+  markStarsSeen();
+  await wait(1400);
+  await world.flyTo(back.pos, back.target, 2.0);
+  world.controls.enabled = true;
+  busy = false;
+}
+
+// Leave the Realm of Stars: back through the Door, or straight home.
+async function leaveStars(to = 'haven', baby = null) {
+  if (busy || where !== 'stars') return;
+  busy = true;
+  setScreen('travel');
+  world.controls.enabled = false;
+  sfx.whoosh();
+  await fade(true);
+  where = to;
+  const b = baby && hatchlings.get(baby);
+  if (to === 'vale') {
+    director.teleport(companion, haven.door.front.clone());
+    haven.setLightFocus(VALE_CENTER);
+    world.setBounds(VALE_CENTER, 11);
+  } else {
+    director.teleport(companion, haven.anchors.home.clone());
+    haven.setLightFocus(new THREE.Vector3(0, 0, 0));
+    world.setBounds(new THREE.Vector3(0, 0, 0), 8);
+    if (b) {
+      b.d.root.position.copy(haven.anchors.home).add(new THREE.Vector3(1.2, 0, 0.8));
+      b.d.setPose({});
+      hatchlings.setAway(baby, false);
+    }
+  }
+  faceCamera(companion);
+  updateTimeOfDay();
+  audio.setLocation(to === 'vale' ? 'vale' : 'haven');
+  const v = view(to);
+  world.camera.position.set(v.pos[0], v.pos[1] + 6, v.pos[2] + 8);
+  world.controls.target.set(...v.target);
+  await fade(false);
+  await world.flyTo(v.pos, v.target, 2.2);
+  story.setLocation();
+  setScreen(to);
+  world.controls.enabled = true;
+  busy = false;
+  if (!b) say(to === 'vale' ? 'Back through the Door, into Dragon Haven.' : 'Home again. Your Quests are right where you left them.', 3600);
+  updateNews();
+  if (to === 'haven') setTimeout(placeNext, 2500); // anything you found out there, ready to place
+}
+$('#stars-door-btn').addEventListener('click', () => leaveStars('vale'));
+$('#stars-home-btn').addEventListener('click', () => leaveStars('haven'));
+
+// Things to tap in the Realm of Stars.
+function starsTap(obj, spotName, fn) {
+  world.onTap(obj, () => {
+    if (where !== 'stars' || busy) return;
+    const spot = stars.spot(spotName);
+    if (spot) director.visit(companion, spot, obj.getWorldPosition(new THREE.Vector3()));
+    fn();
+  });
+}
+let starsTalking = false;
+async function starsTalk(who, name, lines) {
+  if (starsTalking) return;
+  starsTalking = true;
+  await talk({ who, name, lines });
+  starsTalking = false;
+}
+stars.targets.singers.forEach((obj) => starsTap(obj, 'singers', () => {
+  stars.singers.forEach((s) => s.react('tilt'));
+  starsTalk('singer', 'The eldest star-singer', singerLines());
+}));
+starsTap(stars.targets.lune, 'lune', () => starsTalk('lune', 'Lune', luneLines()));
+starsTap(stars.targets.nest, 'nest', () => {
+  if (starEggHatched()) return say('The star-singers’ nest. They hum to it still, out of habit.', 4000);
+  if (starEggReady()) return hatchStarEgg2();
+  const lit = starsLit();
+  say(lit === 0
+    ? 'The egg is cold, and carved with a wave. The star-singers hum to it, but it needs starlight.'
+    : `The egg feels a little warmer. ${lit} of ${STAR_COUNT} stars relit.`, 4600);
+});
+starsTap(stars.targets.lake, 'lake', () => say('The lake is perfectly still. Every star in the sky is in it, even the dark ones.', 4400));
+stars.targets.spires.forEach((sp) => starsTap(sp, null, () => { sfx.chime(); say('The crystal hums a single, clear note.', 3000); }));
+
+// Relight a star for a finished Quest (and show it, if you're there).
+function relightForQuest() {
+  const lit = relightStar();
+  if (lit == null) return;
+  stars.setWarmth(lit / STAR_COUNT);
+  if (where === 'stars') whenCalm(() => lookUpAtStars(lit - 1, lit));
+  whenCalm(() => {
+    if (lit >= STAR_COUNT) tell('Every star over the Realm of Stars is shining again! The star-singers’ egg is waking up.');
+    else say(`A star relit over the Realm of Stars. ${lit} of ${STAR_COUNT}.`, 4200);
+  });
+  updateNews();
+}
+
+// The Wave egg hatches in the star-singers' nest.
+async function hatchStarEgg2() {
+  if (hatching || !starEggReady() || !companion || where !== 'stars') return;
+  hatching = true;
+  busy = true;
+  setScreen('hatch');
+  world.controls.enabled = false;
+  director.stop();
+  const e = stars.eggPosition();
+  companion.faceTowards(e.x, e.z);
+  stars.hum(true);
+  await world.flyTo([e.x - 2.0, e.y + 1.4, e.z + 3.2], [e.x, e.y + 0.1, e.z], 2.4);
+  await ask('The star-singers hum louder. The egg rocks in the nest… it’s hatching!', 'Watch');
+  await stars.shakeEgg(4.0);
+  const c = hatchStarEgg();
+  stars.hideEgg();
+  sfx.hatch();
+  garden.sparkle(e, 60, '#bfe6ff');
+  hatchlings.spawn(c, { pop: true, at: new THREE.Vector3(e.x, STARS_CENTER.y + 0.2, e.z) });
+  companion.react('celebrate');
+  stars.singers.forEach((s) => s.react('celebrate'));
+  await wait(3200);
+  await ask('A small sea-green dragon blinks up at a sky full of stars.');
+  const name = await collection.showHatchling(c);
+  hatchlings.rename(c.id, name);
+  await wait(600);
+  await ask(`${name} looks up at you. “${WAVE_MEMORIES[0]}”`);
+  await ask(`“${WAVE_MEMORIES[1]}”`);
+  await ask('The star-singers look at each other. “Water… The Wave. Somewhere behind your Door is a realm of the sea.”');
+  if (!raising()) startRaising(c);
+  await ask(`${name} wants to see your home.`, 'Fly home together');
+  hatching = false;
+  busy = false;
+  await leaveStars('haven', c.id);
+  nextWishNote();
+  flushCalm();
+  setTimeout(placeNext, 3500);
+}
 
 // ---- Exploring Dragon Haven ----
 function valeTap(obj, spotName, lookAt, fn) {
@@ -979,6 +1221,7 @@ subscribe(() => { story.check(); updateNews(); });
 // A small glowing dot on the Dragon Haven button when something is waiting
 // there: the egg is ready, Quill has news, the egg's moment, the Door or the chest.
 function havenNews() {
+  if (starEggReady()) return 'The star-singers’ egg is ready to hatch! Let’s go to the Realm of Stars.';
   if (!state.realm.visited) return 'There’s an egg waiting in Dragon Haven. Shall we fly over and see?';
   if (eggReady()) return 'The star egg is ready to hatch! Let’s fly to Dragon Haven.';
   if (story.pending('egg-and-door')) return 'Let’s go and look at the egg in Dragon Haven.';
@@ -989,6 +1232,7 @@ function havenNews() {
 }
 function updateNews() {
   $('#vale-btn').classList.toggle('has-news', where === 'haven' && !!havenNews());
+  $('#vale-btn').setAttribute('aria-label', starsOpen() ? 'Travel' : 'Fly to Dragon Haven');
 }
 
 async function hatchSequence() {
@@ -1063,10 +1307,9 @@ world.scene.add(ripple);
 
 world.onDoubleTap((sx, sy) => {
   const screen = document.body.dataset.screen;
-  if (busy || touring || !companion || (screen !== 'haven' && screen !== 'vale')) return;
-  const inVale = where === 'vale';
-  const groundY = inVale ? VALE_CENTER.y : 0;
-  const walkable = inVale ? valeWalkable : havenWalkable;
+  if (busy || touring || !companion || !['haven', 'vale', 'stars'].includes(screen)) return;
+  const groundY = groundHere();
+  const walkable = walkableHere;
   const target = world.groundPoint(sx, sy, groundY);
   if (!target) return;
   // If that exact spot isn't somewhere a dragon can stand (the pond, a
@@ -1093,7 +1336,7 @@ const care = createCare({
   getWhere: () => where,
   isBusy: () => busy || touring || hatching,
   think: (text, opts) => moments.think(text, opts),
-  walkable: (x, z) => (where === 'vale' ? valeWalkable(x, z) : havenWalkable(x, z)),
+  walkable: (x, z) => walkableHere(x, z),
   pond: { x: 5.2, z: 1.4, r: 2.3 },
   splash: (pos) => garden.sparkle(pos, 16, '#9fd3ff'),
   canTravel: () => where === 'haven' && valeUnlocked(),
@@ -1168,4 +1411,4 @@ setTimeout(hideLoading, 2500); // in case frames are throttled
 story.check();
 updateNews();
 
-if (location.hostname === 'localhost') window.quest = { story, world, director, moments, bubbles, focus, hatchlings, onComplete, care, startPlacing, updateNews, garden, haven, vale, state, reveal, hatchSequence, refreshDoor, travelToVale, returnToHaven, openDoorSequence, get companion() { return companion; } };
+if (location.hostname === 'localhost') window.quest = { story, world, director, moments, bubbles, focus, hatchlings, onComplete, care, startPlacing, updateNews, stars, enterStars, leaveStars, hatchStarEgg2, garden, haven, vale, state, reveal, hatchSequence, refreshDoor, travelToVale, returnToHaven, openDoorSequence, get companion() { return companion; } };

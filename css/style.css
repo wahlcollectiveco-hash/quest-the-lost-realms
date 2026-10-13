@@ -87,6 +87,7 @@ body[data-screen="welcome"] #welcome,
 body[data-screen="select"] #select,
 body[data-screen="haven"] #haven,
 body[data-screen="vale"] #vale,
+body[data-screen="stars"] #stars,
 body[data-screen="focus"] #focus { opacity: 1; visibility: visible; transition: opacity 0.8s ease 0.2s, visibility 0s; }
 
 /* Loading */
@@ -728,6 +729,25 @@ body[data-screen="place"] .place-bar { display: block; }
 .place-bar p { margin: 0 0 10px; text-align: center; font-size: 0.95rem; }
 .place-bar b { display: block; font-family: var(--serif); font-size: 1.25rem; }
 .place-actions { display: flex; gap: 8px; justify-content: center; }
+
+/* ---------- The Realm of Stars ---------- */
+#stars .hud-top { align-items: center; }
+.stars-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.stars-actions .btn.ghost { background: rgba(30, 34, 70, 0.55); color: #f1ecff; border-color: rgba(200, 190, 255, 0.35); }
+.realm-fade {
+  position: fixed; inset: 0; z-index: 60; pointer-events: none; opacity: 0; transition: opacity 0.85s ease;
+  background: radial-gradient(circle at 50% 45%, #fff8e6 0%, #c9c2ff 35%, #2a2f6e 100%);
+}
+.realm-fade.on { opacity: 1; pointer-events: auto; }
+.places { display: grid; gap: 10px; }
+.place-btn {
+  display: grid; gap: 2px; text-align: left; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.7); color: var(--ink); cursor: pointer; font: inherit;
+}
+.place-btn b { font-family: var(--serif); font-size: 1.3rem; }
+.place-btn span { font-size: 0.86rem; color: var(--ink-soft); }
+.place-btn.stars { background: linear-gradient(135deg, #2a2f6e, #4a3f86); color: #f6f1ff; border-color: transparent; }
+.place-btn.stars span { color: #d6cff8; }
 
 /* ---------- Something waiting in Dragon Haven ---------- */
 #vale-btn { position: relative; }

@@ -4,6 +4,12 @@ import { $, esc } from './common.js';
 import { sfx } from '../audio.js';
 
 export const PORTRAITS = {
+  singer: `<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="32" fill="#1e2350"/>
+    <circle cx="14" cy="16" r="1.4" fill="#fff"/><circle cx="50" cy="12" r="1.2" fill="#fff"/><circle cx="54" cy="44" r="1" fill="#fff"/><circle cx="9" cy="42" r="1" fill="#fff"/>
+    <path d="M22 18l4 9M42 18l-4 9" stroke="#ffe6a0" stroke-width="3" stroke-linecap="round"/>
+    <ellipse cx="32" cy="36" rx="16" ry="14" fill="#3e4f9e"/><ellipse cx="32" cy="45" rx="9" ry="6" fill="#5a6cb8"/>
+    <circle cx="26" cy="33" r="2.4" fill="#1c1a3a"/><circle cx="38" cy="33" r="2.4" fill="#1c1a3a"/>
+    <path d="M32 19l2 4-2 4-2-4z" fill="#cbbcff"/><text x="47" y="28" font-size="9" fill="#fff3d0">♪</text></svg>`,
   quill: `<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="32" fill="#dfe6df"/>
     <path d="M18 14l6 10M46 14l-6 10" stroke="#c9b27a" stroke-width="4" stroke-linecap="round"/>
     <ellipse cx="32" cy="36" rx="17" ry="15" fill="#8e9f94"/><ellipse cx="32" cy="45" rx="10" ry="7" fill="#9fb0a6"/>

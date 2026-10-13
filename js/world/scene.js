@@ -83,6 +83,7 @@ export function createWorld(canvas) {
   function resize() {
     const w = canvas.clientWidth || window.innerWidth;
     const h = canvas.clientHeight || window.innerHeight;
+    if (!w || !h) return; // hidden for now; keep the last good size
     size = { w, h };
     renderer.setSize(w, h, false);
     composer?.setSize(w, h);
@@ -211,7 +212,8 @@ export function createWorld(canvas) {
     renderer,
     tween,
     flyTo,
-    get aspect() { return size.w / size.h; },
+    // (a hidden or zero-size window would give 0/0, so fall back to a sensible shape)
+    get aspect() { const a = size.w / size.h; return Number.isFinite(a) && a > 0 ? a : 0.75; },
     setOffset(x, y) { offset.tx = x; offset.ty = y; },
     follow(obj) { followObj = obj; },
     setReducedMotion(v) { reducedMotion = v; },

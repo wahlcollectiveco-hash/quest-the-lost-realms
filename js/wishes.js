@@ -14,6 +14,7 @@ import { state, save } from './state.js';
 import { DRAGONS } from './data/dragons.js';
 import { eggNeed, eggReady } from './rewards.js';
 import { starSteps } from './realm.js';
+import { STAR_COUNT, starsLit, starEggHatched } from './starsRealm.js';
 
 export const GIFTS = {
   pebble: {
@@ -91,6 +92,13 @@ export function wishCard() {
     const left = starSteps().filter((x) => !x.done);
     if (!left.length) return { eyebrow: 'The Ancient Door', text: 'The Star on the Door is glowing! Fly to Dragon Haven and open it.', progress: '' };
     return { eyebrow: 'Wake the Star on the Door', text: left.map((x) => x.label + (x.progress ? ` (${x.progress})` : '')).join(' · '), progress: '' };
+  }
+  // Through the Door: relight the stars over the Realm of Stars.
+  if (!starEggHatched()) {
+    const lit = starsLit();
+    return lit >= STAR_COUNT
+      ? { eyebrow: 'The Realm of Stars', text: 'Every star is shining again! The star-singers’ egg is ready to hatch.', progress: '' }
+      : { eyebrow: 'The Realm of Stars', text: 'Every Quest you finish relights a star. When the sky is whole, the cold egg the star-singers are keeping will wake.', progress: `${lit} of ${STAR_COUNT} stars relit` };
   }
   return null;
 }

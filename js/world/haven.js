@@ -269,6 +269,8 @@ export function buildHaven(world, { say, sanctuary }) {
     })
   );
   scene.add(sky);
+  // the sky surrounds the camera wherever it goes (even far off, in another realm)
+  updaters.push(() => { sky.position.copy(world.camera.position); });
 
   const hemi = new THREE.HemisphereLight(0xfff1d6, 0x6b8a4f, 1.6);
   scene.add(hemi);
@@ -297,14 +299,27 @@ export function buildHaven(world, { say, sanctuary }) {
     { h: 21.5, ...NIGHT },
     { h: 24, ...NIGHT },
   ];
+  // The Realm of Stars has its own sky: always a deep, clear, starry night,
+  // with cool moonlight and soft violet shade.
+  const STARLIGHT = { h: 0, top: '#0a1236', mid: '#28306e', low: '#141a44', fog: '#1e2758', glow: '#9fa8ff', sun: '#c8c8ff', sunI: 1.7, sky: '#8f92f0', ground: '#2c2c52', hemiI: 1.35, exp: 1.05, night: 1, cloud: '#4a4f8c' };
   const cA = new THREE.Color(), cB = new THREE.Color();
   const mixC = (a, b, t, out) => out.copy(cA.set(a)).lerp(cB.set(b), t);
+  function setStarlight() {
+    scene.fog.near = 45;
+    scene.fog.far = 170;
+    return applyKeys(STARLIGHT, STARLIGHT, 0, 0);
+  }
   function setTimeOfDay(hour) {
+    scene.fog.near = 75;
+    scene.fog.far = 260;
     const h = ((hour % 24) + 24) % 24;
     let i = TIMES.findIndex((k) => k.h > h);
     if (i <= 0) i = 1;
     const a = TIMES[i - 1], b = TIMES[i];
     const t = (h - a.h) / (b.h - a.h);
+    return applyKeys(a, b, t, h);
+  }
+  function applyKeys(a, b, t, h) {
     const u = sky.material.uniforms;
     mixC(a.top, b.top, t, u.top.value);
     mixC(a.mid, b.mid, t, u.mid.value);
@@ -1439,6 +1454,7 @@ export function buildHaven(world, { say, sanctuary }) {
     door: doorApi,
     setLightFocus,
     setTimeOfDay,
+    setStarlight,
     // 0..1: how full the wildflower meadows are
     setFlowerDensity(f) { for (const m of meadow.meshes) m.count = Math.round(meadow.total * f); },
     nest,

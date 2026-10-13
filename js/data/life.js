@@ -90,6 +90,8 @@ export const RUNE_STORIES = [
 
 // What Quill knows about each treasure.
 export const TREASURE_STORIES = {
+  'star-shard': ['A star shard. When a star goes out in the Realm of Stars, little pieces fall like this.', 'Keep it somewhere you can see it. It remembers being bright.'],
+  'comet-pebble': ['A comet pebble. Comets carry messages between realms, or so the star-singers say.', 'This one seems to have been carrying it a very long way.'],
   sunstone: ['A Sunstone! Sunstones form where dragons nap in the sun for a hundred years.', 'They keep the warmth forever. Hold it on a cold day.'],
   'silver-coin': ['A dragon on one side, a door on the other. The Keepers paid travellers with these.', 'Not for anything they bought. Just for coming back safely.'],
   'golden-acorn': ['Ah, a Golden Acorn. The squirrels of the old realms buried them for luck.', 'They always forgot where. That is how the golden oaks grew.'],

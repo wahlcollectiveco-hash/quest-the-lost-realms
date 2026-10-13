@@ -1099,6 +1099,14 @@ export function createActivityDirector(world, haven) {
     // Act out a little scene; resolves true if it finished, false if interrupted.
     scene: (name, d, ctx) => run(name, d, ctx),
     hasScene: (name) => !!ACT[name],
+    // Put a dragon straight down somewhere (stepping through the Door).
+    teleport(d, pos) {
+      stop();
+      dragon = d;
+      d.root.position.copy(pos);
+      groundY = pos.y;
+      d.setPose({});
+    },
     stop,
   };
 }
