@@ -47,6 +47,14 @@ export const CATALOG = [
   { id: 'star-shard', kind: 'treasure', realm: 'stars', name: 'Star Shard', desc: 'A sliver of a fallen star, still faintly warm.', color: '#fff2c4' },
   { id: 'comet-pebble', kind: 'treasure', realm: 'stars', name: 'Comet Pebble', desc: 'Smooth and silver, with a faint trail of light.', color: '#c9d4ee' },
 
+  // From the Realm of Tides (found once the sea realm has opened)
+  { id: 'sea-pearl', kind: 'treasure', realm: 'sea', name: 'Sea Pearl', desc: 'Small, round, and glowing softly from inside.', color: '#e6d8ff' },
+  { id: 'singing-shell', kind: 'treasure', realm: 'sea', name: 'Singing Shell', desc: 'Hold it up and it hums the same song as the reef.', color: '#ffc8b8' },
+  { id: 'sea-glass', kind: 'treasure', realm: 'sea', name: 'Sea Glass', desc: 'A piece of something old, worn smooth by the tides.', color: '#7fe0d0' },
+  { id: 'great-pearl', kind: 'treasure', special: true, name: 'The Great Pearl', desc: 'From inside the giant clam. It took a hundred years to grow.', color: '#f0e0ff' },
+  // Found on treasure flights over home
+  { id: 'sun-feather', kind: 'treasure', special: true, name: 'Sun Feather', desc: 'Caught on a flight above the clouds. Warm as a sunbeam.', color: '#ffd45a' },
+
   // Hidden in Verdant Vale (found by exploring, never by chance)
   { id: 'vale-crystal', kind: 'treasure', special: true, name: 'Grotto Crystal', desc: 'Found behind the great waterfall. It hums whenever the Door does.', color: '#9fc4ff' },
   { id: 'owl-feather', kind: 'treasure', special: true, name: 'Silver Owl Feather', desc: 'Tucked inside the hollow tree, as if someone left it for you.', color: '#cfd3dc' },

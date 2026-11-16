@@ -2,6 +2,7 @@
 // Story Moments. Everything is brief and can be skipped.
 import { $, esc } from './common.js';
 import { sfx } from '../audio.js';
+import { speak, hush } from '../voice.js';
 
 export const PORTRAITS = {
   singer: `<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="32" fill="#1e2350"/>
@@ -51,8 +52,10 @@ export function talk({ who, name, lines, choices = null }) {
         </div>`;
       box.querySelector('button').focus({ preventScroll: true });
       sfx.talk();
+      speak(lines[i], who);
     }
     function close(result = null) {
+      hush();
       box.classList.remove('show');
       document.removeEventListener('keydown', onKey);
       box.onclick = null;
@@ -94,7 +97,8 @@ export const letterbox = {
     };
     $('#story-next').onclick = () => pendingNext?.();
   },
-  text(t) {
+  text(t, who = 'narrator') {
+    speak(t, who);
     const p = $('#story-text');
     p.classList.remove('in');
     void p.offsetWidth;
@@ -116,6 +120,7 @@ export const letterbox = {
     });
   },
   off() {
+    hush();
     pendingNext = null;
     $('#story-bars').classList.remove('show');
   },

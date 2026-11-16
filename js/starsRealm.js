@@ -47,9 +47,7 @@ export function hatchStarEgg() {
   return c;
 }
 
-// ---- What the star-singers say ----
-// The eldest speaks for them. A new thing to say when there is one; otherwise
-// a gentle word about the sky.
+// ---- What the star-singers say (kept short and plain) ----
 export function singerLines() {
   const s = S();
   const lit = s.lit;
@@ -58,48 +56,42 @@ export function singerLines() {
     s.met.singers = true;
     save();
     return [
-      'A visitor, through the Door… and you carry our song with you. You’ve met one of our little ones, haven’t you?',
-      baby ? `${baby}. Yes, we hummed to that egg for a long time, before we sent it through the Door to keep it safe.` : 'We hummed to an egg for a long time, before we sent it through the Door to keep it safe.',
-      'Since the doors closed, our stars have been going out, one by one. You can see the dark places in the sky.',
-      'And look, in our nest. An egg that isn’t ours. It washed up on our shore one night, on a river of starlight. It carries a wave.',
-      'It’s cold. Starlight warms it. Every star you relight will help.',
+      'Hello, traveller. You know our song! You’ve met one of our babies, haven’t you?',
+      baby ? `${baby}! We sang to that egg for a long time. Then we sent it through the Door, to keep it safe.` : 'We sang to an egg for a long time. Then we sent it through the Door, to keep it safe.',
+      'Ever since the doors closed, our stars have been going out. Look up, and you’ll see the dark ones.',
+      'And see the egg in our nest? It isn’t ours. It floated here one night. It has a wave on its shell.',
+      'It’s cold, and starlight warms it. Every star you light will help.',
     ];
   }
   if (s.eggHatched) {
-    if (!s.heard.after) { s.heard.after = true; save(); return ['The little one remembered water, didn’t they? Then the Wave was telling the truth.', 'Somewhere behind your Door is a realm of water. The egg was trying to get home.']; }
-    return ['Listen. The whole sky is humming now.'];
+    if (!s.heard.after) { s.heard.after = true; save(); return ['The little one remembers water. So the wave on the shell was a clue!', 'Behind your Door, there must be a realm under the sea. Go and look.']; }
+    return ['Listen. Every star is singing again. Thank you.'];
   }
-  if (lit >= STAR_COUNT) return ['The sky is whole again. Can you feel it? The egg is waking.', 'Go to it. It wants to see you.'];
-  if (lit >= 6 && !s.heard.half) { s.heard.half = true; save(); return ['Half the sky is lit. The egg turned over last night, in its sleep.', 'It’s listening to the stars.']; }
+  if (lit >= STAR_COUNT) return ['All the stars are shining again! The egg is waking up.', 'Go and see it. Tap the nest.'];
+  if (lit >= 6 && !s.heard.half) { s.heard.half = true; save(); return ['Half the stars are lit! The egg moved last night, in its sleep.']; }
   const left = STAR_COUNT - lit;
-  return [`${left} ${left === 1 ? 'star is' : 'stars are'} still dark. Each thing you finish in your own world lights one more.`];
+  return [`${left} ${left === 1 ? 'star is' : 'stars are'} still dark. Each time you finish a Quest, one more lights up.`];
 }
 
 // ---- What Lune says ----
-// Time pools in this realm, so here her odd way of talking makes sense.
+// Time is mixed up in this realm, so Lune remembers things before they happen.
 export function luneLines() {
   const s = S();
   if (!s.met.lune) {
     s.met.lune = true;
     save();
     return [
-      'Oh. You found me. Or you’re about to. Here, those are the same thing.',
-      'I’m Lune. Time pools in this realm, like water in a bowl. Yesterday and tomorrow sit very close together.',
-      'That’s why I say odd things. I’m remembering in both directions.',
+      'Oh, hello! I’m Lune. I knew you were coming.',
+      'Time is a bit mixed up in this realm. Sometimes I remember things before they happen.',
+      'So if I say something strange, that’s why. I’m not being mysterious. I’m just early.',
     ];
   }
-  if (s.eggHatched && !s.heard.luneAfter) { s.heard.luneAfter = true; save(); return ['There. I told you that would happen. Well. I will have told you.']; }
-  if (!s.heard.luneEgg) { s.heard.luneEgg = true; save(); return ['The egg on the shore? I saw it arrive. Tomorrow.', 'Light the sky, and the egg will listen.']; }
+  if (s.eggHatched && !s.heard.luneAfter) { s.heard.luneAfter = true; save(); return ['See? I told you the egg would hatch. I remembered it last week.']; }
+  if (!s.heard.luneEgg) { s.heard.luneEgg = true; save(); return ['That egg in the nest is going to hatch. I’ve already seen it!', 'Light all the stars, and you’ll see it too.']; }
   const LINES = [
-    'The stars here are very old. Some of them remember you.',
-    'Don’t stay too long. Your world is waiting, and it’s the one that lights the stars.',
-    'I like it here. Nothing is in a hurry, not even time.',
+    'I remember you finishing something tomorrow. Well done, in advance.',
+    'The stars like you. They told me. Or they’re going to.',
+    'Don’t stay too long. The stars light up when you get things done at home.',
   ];
   return [LINES[Math.floor(Math.random() * LINES.length)]];
 }
-
-// What the Wave hatchling remembers from inside the shell.
-export const WAVE_MEMORIES = [
-  'I remember water all around me. Warm, and moving, like breathing.',
-  'And a sound, far away. Like the sea inside a big shell.',
-];

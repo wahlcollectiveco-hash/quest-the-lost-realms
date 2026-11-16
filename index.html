@@ -125,8 +125,8 @@
   <section id="stars" class="screen" aria-label="The Realm of Stars">
     <header class="hud-top">
       <div class="crest">
-        <h1>The Realm of Stars</h1>
-        <p>Where the star-singers hum</p>
+        <h1 id="realm-title">The Realm of Stars</h1>
+        <p id="realm-sub">Where the star-singers hum</p>
       </div>
       <div class="stars-actions">
         <button class="btn ghost" id="stars-door-btn">Dragon Haven</button>
@@ -134,7 +134,32 @@
       </div>
     </header>
   </section>
+  <!-- The treasure cave -->
+  <section id="cave" class="screen" aria-label="The treasure cave">
+    <header class="hud-top">
+      <div class="crest">
+        <h1>The Treasure Cave</h1>
+        <p>Everything you’ve found</p>
+      </div>
+      <button class="btn primary" id="cave-out-btn">Back outside</button>
+    </header>
+  </section>
   <div class="realm-fade" id="realm-fade" aria-hidden="true"></div>
+
+  <!-- Treasure flights -->
+  <button class="flight-pill" id="flight-btn" hidden><i aria-hidden="true">✦</i><span>Treasure flight</span></button>
+  <div class="flight-hud" id="flight-hud" aria-live="polite">
+    <p id="flight-hint">Tap the lights!</p>
+    <p class="flight-score"><b id="flight-count">0</b> <span id="flight-noun">sun motes</span></p>
+    <button class="btn ghost small" id="flight-end">Land</button>
+  </div>
+
+  <!-- Storybook scenes -->
+  <div class="vignette" id="vignette" role="dialog" aria-label="A memory">
+    <canvas></canvas>
+    <button class="vg-skip" data-vg="skip">Skip</button>
+    <div class="vg-bar"><p class="vg-text"></p><button class="btn primary" data-vg="next">Next</button></div>
+  </div>
 
   <!-- 7. Focus Quest -->
   <section id="focus" class="screen" aria-label="Focus Quest">

@@ -207,7 +207,7 @@ export function undersideMat(coneGeo, halfHeight) {
 export function havenWalkable(x, z) {
   if (Math.hypot(x, z) > ISLAND_R - 1.2) return false;
   const near = (p, r) => Math.hypot(x - p[0], z - p[1]) < r;
-  if (near(L.pond, L.pondR + 0.5) || near(L.cottage, 2.3) || near(L.cliff, 3.2) || near(L.door, 0.6)) return false;
+  if (near(L.pond, L.pondR + 0.5) || near(L.cottage, 2.3) || near(L.cliff, 3.2) || near(L.door, 0.6) || near([-4.8, -8.7], 2.6)) return false;
   return true;
 }
 
@@ -308,6 +308,20 @@ export function buildHaven(world, { say, sanctuary }) {
     scene.fog.near = 45;
     scene.fog.far = 170;
     return applyKeys(STARLIGHT, STARLIGHT, 0, 0);
+  }
+  // Under the sea: warm blue-green water that hides the distance.
+  const UNDERSEA = { h: 0, top: '#2a9ab0', mid: '#1c7c96', low: '#0c4460', fog: '#1c7890', glow: '#bff6e8', sun: '#d8fff0', sunI: 2.6, sky: '#8fe6e0', ground: '#3a6a70', hemiI: 1.25, exp: 1.04, night: 0, cloud: '#1c7890' };
+  function setUndersea() {
+    scene.fog.near = 6;
+    scene.fog.far = 62;
+    return applyKeys(UNDERSEA, UNDERSEA, 0, 0);
+  }
+  // Inside the cave: lantern light only.
+  const CAVELIGHT = { h: 0, top: '#2a2018', mid: '#3a2c20', low: '#2a2018', fog: '#3a2c20', glow: '#000000', sun: '#ffd0a0', sunI: 0.25, sky: '#ffd6a0', ground: '#4a3828', hemiI: 0.35, exp: 1.05, night: 0, cloud: '#3a2c20' };
+  function setCavelight() {
+    scene.fog.near = 30;
+    scene.fog.far = 90;
+    return applyKeys(CAVELIGHT, CAVELIGHT, 0, 0);
   }
   function setTimeOfDay(hour) {
     scene.fog.near = 75;
@@ -1455,6 +1469,8 @@ export function buildHaven(world, { say, sanctuary }) {
     setLightFocus,
     setTimeOfDay,
     setStarlight,
+    setUndersea,
+    setCavelight,
     // 0..1: how full the wildflower meadows are
     setFlowerDensity(f) { for (const m of meadow.meshes) m.count = Math.round(meadow.total * f); },
     nest,

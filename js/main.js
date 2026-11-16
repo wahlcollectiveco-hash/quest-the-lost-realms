@@ -7,8 +7,16 @@ import { buildVale, SANCTUARY } from './world/vale.js';
 import { buildStars, STARS_CENTER, starsWalkable } from './world/stars.js';
 import {
   STAR_COUNT, starsOpen, starsLit, starEggReady, starEggHatched, relightStar, unseenStars, markStarsSeen,
-  hatchStarEgg, singerLines, luneLines, WAVE_MEMORIES,
+  hatchStarEgg, singerLines, luneLines,
 } from './starsRealm.js';
+import { buildSea, SEA_CENTER, seaWalkable } from './world/sea.js';
+import { CORAL_COUNT, seaOpen, coralsLit, clamReady, clamOpened, wakeCoral, unseenCorals, markCoralsSeen, markClamOpened, pearlLines } from './tidesRealm.js';
+import { buildCave, CAVE_CENTER, caveWalkable } from './world/cave.js';
+import { NEWCOMERS, newcomerById } from './data/newcomers.js';
+import { createFlight } from './flight.js';
+import { playVignette } from './ui/vignette.js';
+import { letterbox } from './ui/dialogue.js';
+import { TREATS, TREASURE_STORIES } from './data/life.js';
 import { openDoorPanel } from './ui/door.js';
 import { createStory } from './story.js';
 import { audio, sfx } from './audio.js';
@@ -28,7 +36,7 @@ import { createHatchlings } from './world/hatchlings.js';
 import { createCollection } from './ui/collection.js';
 import { byId, inHaven } from './data/discoveries.js';
 import {
-  rewardQuest, eggFraction, eggPalette, eggReady, eggStage, eggNeed, hatchEgg, foundOf, openChest, grant, placeItem, storeItem,
+  rewardQuest, eggFraction, eggPalette, eggReady, eggStage, eggNeed, hatchEgg, foundOf, openChest, grant, placeItem, storeItem, useFlight, freeTreasures,
 } from './rewards.js';
 import { $, $$, esc, say, tell, ask, celebrate, hideCelebrate, pauseTells, resumeTells, openModal } from './ui/common.js';
 import { talk } from './ui/dialogue.js';
@@ -51,6 +59,8 @@ const world = createWorld($('#world'));
 const haven = buildHaven(world, { say, sanctuary: SANCTUARY });
 const vale = buildVale(world);
 const stars = buildStars(world);
+const sea = buildSea(world);
+const cave = buildCave(world, haven.group, { say });
 const abilities = createAbilities(world);
 // Each dragon leaves a little trail where they walk and rest: Pebble flowers,
 // Ash flames, Moon clouds and sparkles. (Meadows stay calmer for Pebble.)
@@ -73,6 +83,8 @@ applySettings({ world, audio });
 function updateTimeOfDay() {
   // the Realm of Stars is always a starry night
   if (where === 'stars') { haven.setStarlight(); audio.setNight(true); return; }
+  if (where === 'sea') { haven.setUndersea(); audio.setNight(false); return; }
+  if (where === 'cave') { haven.setCavelight(); audio.setNight(true); return; }
   const now = new Date();
   const hour = settings().timeOfDay ? now.getHours() + now.getMinutes() / 60 : 17.5;
   audio.setNight(haven.setTimeOfDay(hour) > 0.6);
@@ -123,6 +135,9 @@ settleOldSave();
 stars.setLit(Math.min(state.stars?.shown || 0, starsLit()));
 stars.setWarmth(starsLit() / STAR_COUNT);
 if (starEggHatched()) stars.hideEgg();
+sea.setLit(Math.min(state.sea?.shown || 0, coralsLit()));
+if (clamOpened()) { sea.openClam(false); sea.hidePearl(); }
+cave.refresh();
 
 // Bring back everything discovered so far.
 for (const id of Object.keys(state.found)) if (inHaven(byId(id) || {}) && !(state.unplaced || []).includes(id)) garden.place(id);
@@ -141,10 +156,12 @@ const VIEWS = {
   haven: { dir: [0.08, 0.38, 0.9], dist: 23, target: [-0.3, 1.1, -1.6], fit: 0.85 },
   vale: { dir: [0.06, 0.55, 0.84], dist: 33, target: [VALE_CENTER.x, VALE_CENTER.y + 0.8, VALE_CENTER.z + 0.5], fit: 0.85 },
   stars: { dir: [0, 0.3, 0.95], dist: 27, target: [STARS_CENTER.x, STARS_CENTER.y + 3.2, STARS_CENTER.z - 1.5], fit: 0.85 },
+  sea: { dir: [0, 0.34, 0.94], dist: 25, target: [SEA_CENTER.x, SEA_CENTER.y + 2.2, SEA_CENTER.z - 1.5], fit: 0.85 },
+  cave: { dir: [0.06, 0.3, 0.95], dist: 10.5, target: [CAVE_CENTER.x, CAVE_CENTER.y + 1.9, CAVE_CENTER.z - 1.6], fit: 0.62 },
 };
 // Where the ground is, and where a dragon can stand, wherever you are.
-const groundHere = () => (where === 'vale' ? VALE_CENTER.y : where === 'stars' ? STARS_CENTER.y : 0);
-const walkableHere = (x, z) => (where === 'vale' ? valeWalkable(x, z) : where === 'stars' ? starsWalkable(x, z) : havenWalkable(x, z));
+const groundHere = () => ({ vale: VALE_CENTER.y, stars: STARS_CENTER.y, sea: SEA_CENTER.y, cave: CAVE_CENTER.y }[where] ?? 0);
+const walkableHere = (x, z) => ({ vale: valeWalkable, stars: starsWalkable, sea: seaWalkable, cave: caveWalkable }[where] || havenWalkable)(x, z);
 function view(name) {
   const v = VIEWS[name];
   const dist = v.dist * Math.max(1, v.fit / world.aspect);
@@ -451,11 +468,6 @@ async function showRewards(items, { zoom = true } = {}) {
       await cfly(...lookAtSpot(garden.positionOf(it.id)), 2.0);
       await cwait(500);
       garden.place(it.id, true);
-    } else if (cinematic && it.kind === 'treasure') {
-      await cfly(...lookAtSpot(garden.pilePosition(), 3.8), 2.0);
-      await cwait(500);
-      garden.setTreasures(foundOf('treasure').length);
-      garden.popTreasure(it.color);
     } else if (cinematic && companion) {
       // keys, map pieces and story fragments: the dragon digs them up
       const p = companion.root.position;
@@ -465,15 +477,19 @@ async function showRewards(items, { zoom = true } = {}) {
       companion.setPose({});
       companion.react('hop');
       garden.sparkle(p, 30);
+      if (it.kind === 'treasure') garden.popTreasure(it.color, p.clone().add(new THREE.Vector3(Math.sin(companion.root.rotation.y) * 0.9, 0, Math.cos(companion.root.rotation.y) * 0.9)));
     } else if (inHaven(it)) {
       garden.place(it.id, true);
     }
     sfx.discovery();
     await cwait(cinematic ? 2400 : 900);
+    // story pieces come with a little moving picture of what happened
+    if (STORY_SCENES[it.id] && !clipSkip) await playVignette(STORY_SCENES[it.id]);
     await collection.showDiscovery(it, { more: i < items.length - 1 });
   }
-  garden.setTreasures(foundOf('treasure').length);
+  cave.refresh();
 }
+const STORY_SCENES = { 'story-1': 'old-world', 'story-2': 'sealing', 'story-4': 'home-drawing', 'story-5': 'seven-eggs' };
 
 // Rewards found outside of finishing a Quest (the chest, hidden spots in Dragon Haven).
 async function reveal(items) {
@@ -576,6 +592,26 @@ async function showGift(g, { zoom = true } = {}) {
     care.render();
     return;
   }
+  if (g.type === 'flight') {
+    sfx.discovery();
+    await collection.showCard({
+      icon: '✨', eyebrow: 'A treasure flight!', title: 'Something is glinting up there',
+      desc: `${n} spotted treasure. Go flying together and gather it up.`,
+      note: 'Tap “Treasure flight” whenever you like. It works at home and in every realm.', button: 'Ooh!',
+    });
+    updateFlightButton();
+    return;
+  }
+  if (g.type === 'dragon') {
+    const nc = g.newcomer;
+    spawnNewcomer(nc);
+    sfx.moment();
+    await collection.showCard({
+      icon: '🐉', eyebrow: 'Someone new!', title: `${nc.name} has arrived`, desc: nc.arrive,
+      note: `Go to ${PLACES[nc.realm].name} and tap ${nc.name} to say hello.`, button: 'I’ll visit!',
+    });
+    updateNews();
+  }
 }
 
 // ---- Choosing where Haven things go ----
@@ -646,6 +682,7 @@ function onComplete(q, { focusMinutes = 0, prefix = '' } = {}) {
   const r = rewardQuest(q, { focusMinutes });
   const granted = r ? wishProgress({ quests: 1, focus: focusMinutes }) : null;
   if (r) relightForQuest();
+  updateFlightButton();
   sfx.complete();
   if (clipPlaying) clipSkip = true; // finishing several in a row: hurry the earlier clip along
   if (!willClip) {
@@ -803,14 +840,16 @@ function refreshDoor(announce = true) {
   haven.door.setLit(lit);
   if (!fresh.length || !announce) return;
   haven.door.pulse();
-  whenCalm(() => tell(state.realm.doorOpened
-    ? 'The Star on the Ancient Door is glowing.'
-    : 'The Star on the Ancient Door is glowing! Fly to Dragon Haven and tap the Door.'));
+  whenCalm(() => tell(fresh.includes(1)
+    ? 'The Wave on the Ancient Door is glowing! The Door can now take you to a new realm, under the sea.'
+    : state.realm.doorOpened
+      ? 'The Star on the Ancient Door is glowing.'
+      : 'The Star on the Ancient Door is glowing! Fly to Dragon Haven and tap the Door.'));
 }
 
 function showDoorPanel() {
   haven.door.pulse();
-  openDoorPanel({ onOpen: openDoorSequence, onVale: travelToVale, onThrough: enterStars, here: where === 'vale' });
+  openDoorPanel({ onOpen: openDoorSequence, onVale: travelToVale, onThrough: (id) => enterRealm(id), here: where === 'vale' });
 }
 world.onTap(haven.door.object, () => {
   if (where !== 'vale' || busy) return;
@@ -918,13 +957,26 @@ async function returnToHaven({ baby = null } = {}) {
 $('#vale-btn').addEventListener('click', () => (starsOpen() ? chooseDestination() : travelToVale()));
 $('#return-btn').addEventListener('click', () => returnToHaven());
 
-// ---- The Realm of Stars ----
+// ---- The realms behind the Door ----
 // Through the open Door from Dragon Haven, or straight from home once you've
-// been. Stepping between realms is a soft fade through starlight.
+// been. Stepping between realms is a soft fade.
+const PLACES = {
+  stars: { name: 'the Realm of Stars', title: 'The Realm of Stars', sub: 'Where the star-singers hum', set: stars, center: STARS_CENTER, open: starsOpen,
+    first: 'Welcome to the Realm of Stars. Look up: some of the stars have gone dark. The star-singers are humming by their nest. Tap them to say hello.' },
+  sea: { name: 'the Realm of Tides', title: 'The Realm of Tides', sub: 'Under the sea', set: sea, center: SEA_CENTER, open: seaOpen,
+    first: 'Welcome to the Realm of Tides, under the sea. The corals here have gone grey and fallen asleep. Tap Pearl, the sea dragon, to say hello.' },
+};
+const inRealm = () => !!PLACES[where];
 function fade(on) {
   const el = $('#realm-fade');
   el.classList.toggle('on', on);
   return wait(on ? 900 : 700);
+}
+function realmNote(id) {
+  const waiting = NEWCOMERS.find((n) => n.realm === id && state.newcomers?.[n.id] === 'arrived');
+  if (waiting) return `${waiting.name} is waiting to meet you`;
+  if (id === 'stars') return starEggHatched() ? 'Every star is shining' : `${starsLit()} of ${STAR_COUNT} stars lit`;
+  return clamOpened() ? 'The whole reef is glowing' : `${coralsLit()} of ${CORAL_COUNT} corals awake`;
 }
 function chooseDestination() {
   if (busy || where !== 'haven') return;
@@ -932,20 +984,20 @@ function chooseDestination() {
     <div class="places">
       <div class="detail-head"><h2>Where to?</h2><button class="icon-btn small" data-go="close" aria-label="Close">✕</button></div>
       <button class="place-btn" data-go="vale"><b>Dragon Haven</b><span>The Ancient Door, Quill, and the old chest</span></button>
-      <button class="place-btn stars" data-go="stars"><b>The Realm of Stars</b><span>${starEggHatched() ? 'Where the star-singers hum' : `${starsLit()} of ${STAR_COUNT} stars relit`}</span></button>
+      ${Object.entries(PLACES).filter(([, p]) => p.open()).map(([id, p]) => `<button class="place-btn ${id}" data-go="${id}"><b>${p.title}</b><span>${esc(realmNote(id))}</span></button>`).join('')}
     </div>`, { className: 'detail', label: 'Where to?' });
   m.el.addEventListener('click', (e) => {
     const go = e.target.closest('[data-go]')?.dataset.go;
     if (!go) return;
     m.close();
     if (go === 'vale') travelToVale();
-    if (go === 'stars') enterStars();
+    else if (PLACES[go]) enterRealm(go);
   });
 }
 
-// Step into the Realm of Stars (from Dragon Haven, through the Door; or from home).
-async function enterStars() {
-  if (busy || where === 'stars' || !companion || !starsOpen()) return;
+async function enterRealm(id) {
+  const place = PLACES[id];
+  if (busy || where === id || !companion || !place?.open()) return;
   busy = true;
   collection.hideDiscovery();
   questUI?.setSheet('peek');
@@ -967,36 +1019,40 @@ async function enterStars() {
   await fade(true);
   haven.door.awaken(0.01);
   haven.door.hideGlimpse(0.01);
-  where = 'stars';
-  director.teleport(companion, stars.arrive);
-  companion.faceTowards(stars.center.x, stars.center.z);
-  haven.setLightFocus(STARS_CENTER);
-  world.setBounds(STARS_CENTER, 9);
+  where = id;
+  director.teleport(companion, place.set.arrive);
+  companion.faceTowards(place.center.x, place.center.z);
+  haven.setLightFocus(place.center);
+  world.setBounds(place.center, 9);
   updateTimeOfDay();
-  audio.setLocation('stars');
-  const v = view('stars');
+  audio.setLocation(id);
+  $('#realm-title').textContent = place.title;
+  $('#realm-sub').textContent = place.sub;
+  const v = view(id);
   world.controls.maxDistance = Math.max(36, v.dist * 1.3);
-  const start = v.target.map((t, i) => t + [0, 1.5, 6][i]);
   world.camera.position.set(v.pos[0], v.pos[1] + 4, v.pos[2] + 8);
-  world.controls.target.set(...start);
+  world.controls.target.set(v.target[0], v.target[1] + 1.5, v.target[2] + 6);
   await fade(false);
   await world.flyTo(v.pos, v.target, 2.6);
-  setScreen('stars');
+  setScreen(id);
   world.controls.enabled = true;
   busy = false;
-  const first = !state.stars?.met?.realm;
-  if (first) {
-    state.stars.met.realm = true;
-    save();
-    tell('The Realm of Stars. It’s quiet here, and very old. Look up: some of the stars have gone dark. The star-singers are humming by their nest.');
+  const seen = (state.realmsSeen ||= {});
+  const first = !seen[id];
+  if (first) { seen[id] = true; save(); tell(place.first); }
+  // show what your finished Quests did while you were away
+  if (id === 'stars') {
+    const { from, to } = unseenStars();
+    if (to > from) await lookUpAtStars(from, to, first ? 1400 : 600);
+  } else {
+    const { from, to } = unseenCorals();
+    if (to > from) await lookAtCorals(from, to, first ? 1400 : 600);
   }
-  // light any stars you relit while you were away
-  const { from, to } = unseenStars();
-  if (to > from) await lookUpAtStars(from, to, first ? 1400 : 600);
   updateNews();
+  updateFlightButton();
 }
 
-// Look up at the sky while newly relit stars come on, one by one.
+// Look up at the sky while newly lit stars come on, one by one.
 async function lookUpAtStars(from, to, delay = 0) {
   busy = true;
   await wait(delay);
@@ -1004,7 +1060,7 @@ async function lookUpAtStars(from, to, delay = 0) {
   const c = stars.skyCentre();
   world.controls.enabled = false;
   await world.flyTo([c.x, c.y - 4, c.z + 34], [c.x, c.y, c.z], 2.0);
-  say(to - from === 1 ? 'A star you relit comes back to life.' : `${to - from} stars you relit come back to life.`, 4200);
+  say(to - from === 1 ? 'A star you lit is shining again.' : `${to - from} stars you lit are shining again.`, 4200);
   await stars.setLit(to, from);
   markStarsSeen();
   await wait(1400);
@@ -1012,10 +1068,27 @@ async function lookUpAtStars(from, to, delay = 0) {
   world.controls.enabled = true;
   busy = false;
 }
+// Watch sleeping corals wake up and glow.
+async function lookAtCorals(from, to, delay = 0) {
+  busy = true;
+  await wait(delay);
+  const back = { pos: world.camera.position.toArray(), target: world.controls.target.toArray() };
+  const c = sea.coralPosition(from);
+  world.controls.enabled = false;
+  await world.flyTo([c.x + 1.5, c.y + 3.2, c.z + 6.5], [c.x, c.y + 0.8, c.z], 2.0);
+  say(to - from === 1 ? 'A coral you woke is glowing again.' : `${to - from} corals you woke are glowing again.`, 4200);
+  await sea.setLit(to, from);
+  garden.sparkle(c, 20, '#bff6e8');
+  markCoralsSeen();
+  await wait(1600);
+  await world.flyTo(back.pos, back.target, 2.0);
+  world.controls.enabled = true;
+  busy = false;
+}
 
-// Leave the Realm of Stars: back through the Door, or straight home.
-async function leaveStars(to = 'haven', baby = null) {
-  if (busy || where !== 'stars') return;
+// Leave a realm: back through the Door, or straight home.
+async function leaveRealm(to = 'haven', baby = null) {
+  if (busy || !inRealm()) return;
   busy = true;
   setScreen('travel');
   world.controls.enabled = false;
@@ -1051,53 +1124,74 @@ async function leaveStars(to = 'haven', baby = null) {
   busy = false;
   if (!b) say(to === 'vale' ? 'Back through the Door, into Dragon Haven.' : 'Home again. Your Quests are right where you left them.', 3600);
   updateNews();
+  updateFlightButton();
   if (to === 'haven') setTimeout(placeNext, 2500); // anything you found out there, ready to place
 }
-$('#stars-door-btn').addEventListener('click', () => leaveStars('vale'));
-$('#stars-home-btn').addEventListener('click', () => leaveStars('haven'));
+$('#stars-door-btn').addEventListener('click', () => leaveRealm('vale'));
+$('#stars-home-btn').addEventListener('click', () => leaveRealm('haven'));
 
-// Things to tap in the Realm of Stars.
-function starsTap(obj, spotName, fn) {
+// Things to tap in a realm.
+function realmTap(realm, obj, spot, fn) {
   world.onTap(obj, () => {
-    if (where !== 'stars' || busy) return;
-    const spot = stars.spot(spotName);
-    if (spot) director.visit(companion, spot, obj.getWorldPosition(new THREE.Vector3()));
+    if (where !== realm || busy) return;
+    const to = spot && PLACES[realm].set.spot(spot);
+    if (to) director.visit(companion, to, obj.getWorldPosition(new THREE.Vector3()));
     fn();
   });
 }
-let starsTalking = false;
-async function starsTalk(who, name, lines) {
-  if (starsTalking) return;
-  starsTalking = true;
+let realmTalking = false;
+async function realmTalk(who, name, lines) {
+  if (realmTalking) return;
+  realmTalking = true;
   await talk({ who, name, lines });
-  starsTalking = false;
+  realmTalking = false;
 }
-stars.targets.singers.forEach((obj) => starsTap(obj, 'singers', () => {
+stars.targets.singers.forEach((obj) => realmTap('stars', obj, 'singers', async () => {
   stars.singers.forEach((s) => s.react('tilt'));
-  starsTalk('singer', 'The eldest star-singer', singerLines());
+  const first = !state.stars?.met?.singers;
+  await realmTalk('singer', 'The eldest star-singer', singerLines());
+  if (first) playVignette('egg-river');
 }));
-starsTap(stars.targets.lune, 'lune', () => starsTalk('lune', 'Lune', luneLines()));
-starsTap(stars.targets.nest, 'nest', () => {
-  if (starEggHatched()) return say('The star-singers’ nest. They hum to it still, out of habit.', 4000);
+realmTap('stars', stars.targets.lune, 'lune', () => realmTalk('lune', 'Lune', luneLines()));
+realmTap('stars', stars.targets.nest, 'nest', () => {
+  if (starEggHatched()) return say('The star-singers’ nest. They still hum to it, out of habit.', 4000);
   if (starEggReady()) return hatchStarEgg2();
   const lit = starsLit();
   say(lit === 0
-    ? 'The egg is cold, and carved with a wave. The star-singers hum to it, but it needs starlight.'
-    : `The egg feels a little warmer. ${lit} of ${STAR_COUNT} stars relit.`, 4600);
+    ? 'The egg is cold. It has a wave on its shell. It needs starlight to warm it up.'
+    : `The egg feels a little warmer. ${lit} of ${STAR_COUNT} stars lit.`, 4600);
 });
-starsTap(stars.targets.lake, 'lake', () => say('The lake is perfectly still. Every star in the sky is in it, even the dark ones.', 4400));
-stars.targets.spires.forEach((sp) => starsTap(sp, null, () => { sfx.chime(); say('The crystal hums a single, clear note.', 3000); }));
+realmTap('stars', stars.targets.lake, 'lake', () => say('The lake is perfectly still. You can see every star in it.', 4400));
+stars.targets.spires.forEach((sp) => realmTap('stars', sp, null, () => { sfx.chime(); say('The crystal hums one clear note.', 3000); }));
 
-// Relight a star for a finished Quest (and show it, if you're there).
+realmTap('sea', sea.targets.keeper, 'keeper', () => { sea.keeper.react('tilt'); realmTalk('pearl', 'Pearl, the reef-keeper', pearlLines()); });
+realmTap('sea', sea.targets.clam, 'clam', () => {
+  if (clamOpened()) return say('The giant clam is open. The egg with the leaf on it is sleeping inside.', 4400);
+  if (clamReady()) return openClamScene();
+  say(`The giant clam is shut tight. It opens when the whole reef is glowing. ${coralsLit()} of ${CORAL_COUNT} corals awake.`, 4800);
+});
+realmTap('sea', sea.targets.door, 'door', () => say('An old stone arch, half buried in the sand. It looks just like the Ancient Door.', 4400));
+sea.targets.corals.forEach((c, i) => realmTap('sea', c, null, () => say(i < coralsLit() ? 'This coral is awake and glowing.' : 'This coral is grey and asleep. Finish a Quest to wake one up.', 3600)));
+
+// A star, then a coral, for each finished Quest (and show it, if you're there).
 function relightForQuest() {
   const lit = relightStar();
-  if (lit == null) return;
-  stars.setWarmth(lit / STAR_COUNT);
-  if (where === 'stars') whenCalm(() => lookUpAtStars(lit - 1, lit));
-  whenCalm(() => {
-    if (lit >= STAR_COUNT) tell('Every star over the Realm of Stars is shining again! The star-singers’ egg is waking up.');
-    else say(`A star relit over the Realm of Stars. ${lit} of ${STAR_COUNT}.`, 4200);
-  });
+  if (lit != null) {
+    stars.setWarmth(lit / STAR_COUNT);
+    if (where === 'stars') whenCalm(() => lookUpAtStars(lit - 1, lit));
+    whenCalm(() => {
+      if (lit >= STAR_COUNT) tell('Every star in the Realm of Stars is shining again! The star-singers’ egg is waking up.');
+      else if (where !== 'stars') say(`You lit a star in the Realm of Stars. ${lit} of ${STAR_COUNT}.`, 4200);
+    });
+  } else {
+    const n = wakeCoral();
+    if (n == null) return;
+    if (where === 'sea') whenCalm(() => lookAtCorals(n - 1, n));
+    whenCalm(() => {
+      if (n >= CORAL_COUNT) tell('Every coral in the Realm of Tides is glowing again! The giant clam is starting to open.');
+      else if (where !== 'sea') say(`You woke a coral in the Realm of Tides. ${n} of ${CORAL_COUNT}.`, 4200);
+    });
+  }
   updateNews();
 }
 
@@ -1127,18 +1221,263 @@ async function hatchStarEgg2() {
   const name = await collection.showHatchling(c);
   hatchlings.rename(c.id, name);
   await wait(600);
-  await ask(`${name} looks up at you. “${WAVE_MEMORIES[0]}”`);
-  await ask(`“${WAVE_MEMORIES[1]}”`);
-  await ask('The star-singers look at each other. “Water… The Wave. Somewhere behind your Door is a realm of the sea.”');
+  await ask(`${name} looks up at you, and remembers something…`, 'See the memory');
+  await playVignette('wave-memory');
+  await ask('The star-singers look at each other. “Water! So the wave on the shell was a clue. There must be a realm under the sea.”');
   if (!raising()) startRaising(c);
+  refreshDoor(true);
   await ask(`${name} wants to see your home.`, 'Fly home together');
   hatching = false;
   busy = false;
-  await leaveStars('haven', c.id);
+  await leaveRealm('haven', c.id);
   nextWishNote();
   flushCalm();
   setTimeout(placeNext, 3500);
 }
+
+// The giant clam opens once the whole reef is glowing.
+async function openClamScene() {
+  if (busy || !clamReady() || where !== 'sea') return;
+  busy = true;
+  setScreen('hatch');
+  world.controls.enabled = false;
+  const c = sea.clamPosition();
+  director.visit(companion, sea.spot('clam'), c);
+  await world.flyTo([c.x + 1.6, c.y + 2.8, c.z + 6.5], [c.x, c.y + 1, c.z], 2.4);
+  await ask('The whole reef is glowing. Slowly, the giant clam begins to open…', 'Watch');
+  sfx.door();
+  await sea.openClam();
+  garden.sparkle(c.clone().add(new THREE.Vector3(0, 1, 0)), 50, '#f0e0ff');
+  sea.keeper.react('celebrate');
+  companion.react('celebrate');
+  await wait(1600);
+  await ask('Inside is a huge, glowing pearl. And next to it… an egg, with a leaf on its shell.');
+  await playVignette('leaf-memory');
+  markClamOpened();
+  const pearl = grant('great-pearl');
+  sea.hidePearl();
+  if (pearl) { sfx.discovery(); await collection.showDiscovery(pearl); }
+  cave.refresh();
+  await ask('The egg isn’t ready to hatch yet. It’s waiting for its own realm to be found: a realm of forests.', 'Got it');
+  refreshDoor(false);
+  const v = view('sea');
+  await world.flyTo(v.pos, v.target, 2.2);
+  setScreen('sea');
+  world.controls.enabled = true;
+  busy = false;
+  updateNews();
+}
+
+// ---- New dragons to meet ----
+const newcomers = new Map();
+function spawnNewcomer(n) {
+  if (newcomers.has(n.id)) return newcomers.get(n.id);
+  const d = createDragon({ id: `new-${n.id}`, name: n.name, scale: n.scale, colors: n.colors, build: n.build });
+  const c = PLACES[n.realm].center;
+  d.root.position.set(c.x + n.spot[0], c.y, c.z + n.spot[1]);
+  d.faceTowards(c.x, c.z + 6);
+  world.scene.add(d.root);
+  world.addUpdater(d.update);
+  newcomers.set(n.id, d);
+  world.onTap(d.root, () => {
+    if (where !== n.realm || busy) return;
+    if (state.newcomers?.[n.id] !== 'met') return meetNewcomer(n, d);
+    // already friends: a word, and their trick again
+    bubbles.show(() => d.head.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.7 * n.scale, 0)), { name: n.name, text: n.again[Math.floor(Math.random() * n.again.length)] });
+    doTrick(n, d);
+  });
+  return d;
+}
+for (const n of NEWCOMERS) if (state.newcomers?.[n.id]) spawnNewcomer(n);
+
+// Each newcomer's party trick.
+function doTrick(n, d) {
+  const p = d.root.position.clone();
+  if (n.trick === 'loop') {
+    // a fast loop-the-loop, trailing sparks
+    d.setPose({ fly: 1 });
+    let last = 0;
+    return world.tween(4.2, (q) => {
+      const a = q * TAU * 2;
+      d.root.position.set(p.x + Math.sin(a) * 3.2, p.y + 3.4 - Math.cos(a) * 3.2 + (q < 0.1 ? 0 : 0), p.z + Math.sin(a * 0.5) * 1.2);
+      d.root.rotation.y += 0.09;
+      if (q - last > 0.06) { last = q; garden.sparkle(d.root.position, 6, '#ffd98a'); }
+    }, (q) => q).then(() => { d.root.position.copy(p); d.setPose({}); d.faceTowards(world.camera.position.x, world.camera.position.z); d.react('celebrate'); });
+  }
+  if (n.trick === 'starburst') {
+    d.react('stretch');
+    for (let i = 0; i < 7; i++) setTimeout(() => garden.sparkle(p.clone().add(new THREE.Vector3((i - 3) * 1.1, 4 + Math.sin(i / 6 * Math.PI) * 2, -1)), 14, '#fff2c4'), 300 + i * 260);
+    return wait(2600);
+  }
+  if (n.trick === 'rings') {
+    d.react('breathe');
+    for (let i = 0; i < 3; i++) setTimeout(() => {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.06, 8, 24), new THREE.MeshBasicMaterial({ color: '#e6ffff', transparent: true, opacity: 0.9 }));
+      ring.position.copy(d.head.getWorldPosition(new THREE.Vector3())).add(new THREE.Vector3(0, 0.2, 0.6));
+      ring.rotation.x = Math.PI / 2;
+      world.scene.add(ring);
+      const y0 = ring.position.y;
+      world.tween(3, (q) => { ring.position.y = y0 + q * 4; ring.scale.setScalar(1 + q * 3); ring.material.opacity = 0.9 * (1 - q); }, (q) => q).then(() => world.scene.remove(ring));
+    }, 500 + i * 650);
+    return wait(3400);
+  }
+  // 'pulse': a slow ring of light rolls out across the sea floor
+  d.react('stretch');
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.1, 48), new THREE.MeshBasicMaterial({ color: '#9fe0d0', transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }));
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.copy(p).add(new THREE.Vector3(0, 0.15, 0));
+  world.scene.add(ring);
+  garden.sparkle(p, 30, '#9fe0d0');
+  return world.tween(3.2, (q) => { ring.scale.setScalar(1 + q * 9); ring.material.opacity = 0.9 * (1 - q); }, (q) => q).then(() => world.scene.remove(ring));
+}
+const TAU = Math.PI * 2;
+
+// Meeting someone for the first time: a little scene, their story, and their trick.
+async function meetNewcomer(n, d) {
+  busy = true;
+  setScreen('story');
+  world.controls.enabled = false;
+  let skip = false;
+  letterbox.on(() => { skip = true; });
+  sfx.moment();
+  const p = d.root.position;
+  director.visit(companion, new THREE.Vector3(p.x + 1.8, p.y, p.z + 1.6), p);
+  d.faceTowards(p.x + 1, p.z + 6);
+  await world.flyTo([p.x + 1.4, p.y + 2.2 * n.scale + 0.6, p.z + 5.5], [p.x, p.y + 1.3 * n.scale, p.z], skip ? 0.05 : 2.2);
+  const line = async (t) => { letterbox.text(`${n.name}: “${t}”`, n.voice); d.react('tilt'); if (!skip) await letterbox.next(); };
+  for (const t of n.meet) await line(t);
+  if (!skip) {
+    letterbox.text('');
+    await world.flyTo([p.x + 2.5, p.y + 3.4, p.z + 10], [p.x, p.y + 2.6, p.z], 1.2);
+    await doTrick(n, d);
+    if (n.vignette) await playVignette(n.vignette);
+    await line(n.after);
+  }
+  state.newcomers = { ...(state.newcomers || {}), [n.id]: 'met' };
+  save();
+  letterbox.off();
+  const v = view(where);
+  world.flyTo(v.pos, v.target, 1.8);
+  setScreen(where);
+  world.controls.enabled = true;
+  busy = false;
+  updateNews();
+}
+
+// ---- Treasure flights ----
+const flight = createFlight({ world, sparkle: garden.sparkle });
+const FLIGHTS = {
+  haven: { center: new THREE.Vector3(0, 0, 0), radius: 15, height: 8, skin: { color: '#ffb52e', noun: 'sun motes', hint: 'Tap the golden lights!' } },
+  vale: { center: VALE_CENTER, radius: 20, height: 9, skin: { color: '#ffb52e', noun: 'sun motes', hint: 'Tap the golden lights!' } },
+  stars: { center: STARS_CENTER, radius: 16, height: 8, skin: { color: '#fff2c4', noun: 'star shards', hint: 'Tap the star shards!' } },
+  sea: { center: SEA_CENTER, radius: 10.5, height: 4.5, skin: { color: '#e6d8ff', noun: 'pearls', hint: 'Tap the pearls!' } },
+};
+function updateFlightButton() {
+  const btn = $('#flight-btn');
+  btn.hidden = !(state.flights > 0) || !FLIGHTS[where];
+  btn.querySelector('span').textContent = where === 'sea' ? 'Treasure dive' : where === 'stars' ? 'Night flight' : 'Treasure flight';
+}
+async function startFlight() {
+  const f = FLIGHTS[where];
+  if (busy || touring || !companion || !f || !useFlight()) return;
+  busy = true;
+  bubbles.hide();
+  collection.hideDiscovery();
+  questUI?.setSheet('peek');
+  setScreen('flight');
+  world.controls.enabled = false;
+  director.stop();
+  sfx.whoosh();
+  const count = await flight.play({ dragon: companion, ...f });
+  faceCamera(companion);
+  const v = view(where);
+  await world.flyTo(v.pos, v.target, 1.8);
+  // what you found: a treasure from wherever you flew (or a treat, once you have them all)
+  const pool = where === 'stars' || where === 'sea' ? freeTreasures(where) : [];
+  const sun = !state.found['sun-feather'] && !PLACES[where] ? byId('sun-feather') : null;
+  const any = freeTreasures();
+  const prize = pool[0] || sun || any[Math.floor(Math.random() * any.length)] || null;
+  companion.react('celebrate');
+  if (prize) {
+    grant(prize.id);
+    sfx.discovery();
+    await collection.showCard({ icon: '✨', eyebrow: `You gathered ${count} ${f.skin.noun}!`, title: 'And look what was hiding among them…', button: 'Show me' });
+    await collection.showDiscovery(prize);
+    cave.refresh();
+  } else {
+    const t = TREATS[Math.floor(Math.random() * TREATS.length)];
+    state.pantry = { ...(state.pantry || {}), [t.id]: (state.pantry?.[t.id] || 0) + 1 };
+    save();
+    await collection.showCard({ icon: t.icon, eyebrow: `You gathered ${count} ${f.skin.noun}!`, title: `And a ${t.name}`, desc: 'You’ve found every treasure out here, so here’s a treat.', button: 'Yum!' });
+  }
+  setScreen(where);
+  world.controls.enabled = true;
+  busy = false;
+  updateFlightButton();
+  refreshDoor(true);
+}
+$('#flight-btn').addEventListener('click', startFlight);
+
+// ---- The treasure cave at home ----
+world.onTap(cave.entrance, () => { if (where === 'haven' && !busy && !touring) enterCave(); });
+async function enterCave() {
+  if (busy || where !== 'haven' || !companion) return;
+  busy = true;
+  questUI?.setSheet('peek');
+  setScreen('travel');
+  world.controls.enabled = false;
+  await fade(true);
+  where = 'cave';
+  cave.refresh();
+  director.teleport(companion, cave.heapSpot);
+  haven.setLightFocus(CAVE_CENTER);
+  world.setBounds(CAVE_CENTER, 2.2);
+  updateTimeOfDay();
+  const v = view('cave');
+  world.controls.maxDistance = v.dist * 1.15;
+  world.camera.position.set(...v.pos);
+  world.controls.target.set(...v.target);
+  faceCamera(companion);
+  await fade(false);
+  setScreen('cave');
+  world.controls.enabled = true;
+  busy = false;
+  const { have, all } = cave.counts();
+  say(have ? `${have} of ${all} treasures found. Tap one to look closer.` : 'Your treasure cave. The shelves are waiting for your first treasure!', 5000);
+  updateFlightButton();
+}
+async function leaveCave() {
+  if (busy || where !== 'cave') return;
+  busy = true;
+  setScreen('travel');
+  world.controls.enabled = false;
+  await fade(true);
+  where = 'haven';
+  director.teleport(companion, haven.anchors.home.clone());
+  haven.setLightFocus(new THREE.Vector3(0, 0, 0));
+  world.setBounds(new THREE.Vector3(0, 0, 0), 8);
+  updateTimeOfDay();
+  const v = view('haven');
+  world.controls.maxDistance = Math.max(34, v.dist * 1.3);
+  world.camera.position.set(...v.pos);
+  world.controls.target.set(...v.target);
+  faceCamera(companion);
+  await fade(false);
+  setScreen('haven');
+  world.controls.enabled = true;
+  busy = false;
+  updateFlightButton();
+  setTimeout(placeNext, 1500);
+}
+$('#cave-out-btn').addEventListener('click', leaveCave);
+cave.onTapTreasure((it, m) => {
+  if (where !== 'cave' || busy) return;
+  garden.sparkle(m.getWorldPosition(new THREE.Vector3()), 10);
+  sfx.chime();
+  const tale = TREASURE_STORIES[it.id];
+  const heard = state.story.heard.quill?.[`t-${it.id}`];
+  tell(`${it.name}. ${it.desc}${tale ? (heard ? ` Quill says: “${tale[tale.length - 1]}”` : ' Quill in Dragon Haven knows its story.') : ''}`);
+});
 
 // ---- Exploring Dragon Haven ----
 function valeTap(obj, spotName, lookAt, fn) {
@@ -1222,6 +1561,9 @@ subscribe(() => { story.check(); updateNews(); });
 // there: the egg is ready, Quill has news, the egg's moment, the Door or the chest.
 function havenNews() {
   if (starEggReady()) return 'The star-singers’ egg is ready to hatch! Let’s go to the Realm of Stars.';
+  if (clamReady()) return 'The giant clam is opening! Let’s go to the Realm of Tides.';
+  const waiting = NEWCOMERS.find((n) => state.newcomers?.[n.id] === 'arrived');
+  if (waiting) return `${waiting.name} is waiting to meet us in ${PLACES[waiting.realm].name}!`;
   if (!state.realm.visited) return 'There’s an egg waiting in Dragon Haven. Shall we fly over and see?';
   if (eggReady()) return 'The star egg is ready to hatch! Let’s fly to Dragon Haven.';
   if (story.pending('egg-and-door')) return 'Let’s go and look at the egg in Dragon Haven.';
@@ -1265,8 +1607,8 @@ async function hatchSequence() {
   hatchlings.rename(c.id, name);
   await wait(600);
   // What they remember from inside the shell: the first clue to where they came from.
-  await ask(`${name} looks up at you. “${STAR_MEMORIES[0]}”`);
-  await ask(`“${STAR_MEMORIES[1]}”`);
+  await ask(`${name} looks up at you, and remembers something…`, 'See the memory');
+  await playVignette('star-memory');
   await ask(`${name} wants to see your home.`, 'Fly home together');
   refreshDoor(true);
   hatching = false;
@@ -1307,7 +1649,7 @@ world.scene.add(ripple);
 
 world.onDoubleTap((sx, sy) => {
   const screen = document.body.dataset.screen;
-  if (busy || touring || !companion || !['haven', 'vale', 'stars'].includes(screen)) return;
+  if (busy || touring || !companion || !['haven', 'vale', 'stars', 'sea', 'cave'].includes(screen)) return;
   const groundY = groundHere();
   const walkable = walkableHere;
   const target = world.groundPoint(sx, sy, groundY);
@@ -1410,5 +1752,6 @@ setTimeout(hideLoading, 2500); // in case frames are throttled
 // Debug handle for local development only.
 story.check();
 updateNews();
+updateFlightButton();
 
-if (location.hostname === 'localhost') window.quest = { story, world, director, moments, bubbles, focus, hatchlings, onComplete, care, startPlacing, updateNews, stars, enterStars, leaveStars, hatchStarEgg2, garden, haven, vale, state, reveal, hatchSequence, refreshDoor, travelToVale, returnToHaven, openDoorSequence, get companion() { return companion; } };
+if (location.hostname === 'localhost') window.quest = { story, world, director, moments, bubbles, focus, hatchlings, onComplete, care, startPlacing, updateNews, stars, sea, cave, enterRealm, leaveRealm, hatchStarEgg2, startFlight, enterCave, leaveCave, meetNewcomer, spawnNewcomer, playVignette, openClamScene, garden, haven, vale, state, reveal, hatchSequence, refreshDoor, travelToVale, returnToHaven, openDoorSequence, get companion() { return companion; } };

@@ -10,7 +10,7 @@ import { state, save } from './state.js';
 // Glyph index i is drawn by drawRealm(…, i) in world/haven.js.
 export const REALMS = [
   { id: 'stars', name: 'The Realm of Stars', symbol: 'The Star' },
-  { id: 'r2', name: null, symbol: 'The Wave' },
+  { id: 'sea', name: 'The Realm of Tides', symbol: 'The Wave' },
   { id: 'r3', name: null, symbol: 'The Leaf' },
   { id: 'r4', name: null, symbol: 'The Crescent' },
   { id: 'r5', name: null, symbol: 'The Flame' },
@@ -32,7 +32,7 @@ export function starSteps() {
 export const starReady = () => starSteps().every((s) => s.done);
 
 // Which Door symbols glow.
-export const litRunes = () => REALMS.map((r, i) => i === 0 && (starReady() || state.realm.doorOpened));
+export const litRunes = () => REALMS.map((r, i) => (i === 0 && (starReady() || state.realm.doorOpened)) || (i === 1 && !!state.stars?.eggHatched));
 export const allLit = () => litRunes()[0];
 
 // Dragon Haven is open from the start: the egg is waiting there.

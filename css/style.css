@@ -88,6 +88,8 @@ body[data-screen="select"] #select,
 body[data-screen="haven"] #haven,
 body[data-screen="vale"] #vale,
 body[data-screen="stars"] #stars,
+body[data-screen="sea"] #stars,
+body[data-screen="cave"] #cave,
 body[data-screen="focus"] #focus { opacity: 1; visibility: visible; transition: opacity 0.8s ease 0.2s, visibility 0s; }
 
 /* Loading */
@@ -748,6 +750,47 @@ body[data-screen="place"] .place-bar { display: block; }
 .place-btn span { font-size: 0.86rem; color: var(--ink-soft); }
 .place-btn.stars { background: linear-gradient(135deg, #2a2f6e, #4a3f86); color: #f6f1ff; border-color: transparent; }
 .place-btn.stars span { color: #d6cff8; }
+
+/* ---------- Treasure flights ---------- */
+.flight-pill {
+  position: fixed; left: 16px; top: 142px; z-index: 6; display: none; align-items: center; gap: 8px;
+  padding: 8px 16px 8px 12px; border-radius: 999px; border: 0; cursor: pointer;
+  background: linear-gradient(135deg, #f3c65a, #e08a3c); color: #fffaf0; font: 800 0.92rem var(--sans);
+  box-shadow: var(--shadow), 0 0 18px rgba(255, 210, 120, 0.7); animation: flightPulse 2.4s ease-in-out infinite;
+}
+.flight-pill i { font-style: normal; font-size: 1.1rem; }
+body:is([data-screen="haven"], [data-screen="vale"], [data-screen="stars"], [data-screen="sea"]) .flight-pill:not([hidden]) { display: inline-flex; }
+body[data-screen="vale"] .flight-pill, body[data-screen="stars"] .flight-pill, body[data-screen="sea"] .flight-pill { top: 96px; }
+@keyframes flightPulse { 50% { transform: scale(1.05); } }
+.flight-hud {
+  position: fixed; left: 50%; top: 18px; transform: translate(-50%, -8px); z-index: 30; display: flex; align-items: center; gap: 14px;
+  padding: 10px 14px 10px 18px; border-radius: 999px; background: rgba(30, 33, 28, 0.78); color: #fdf6e4;
+  opacity: 0; pointer-events: none; transition: opacity 0.4s ease, transform 0.4s ease; white-space: nowrap;
+}
+.flight-hud.show { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+.flight-hud p { margin: 0; font: 700 0.9rem var(--sans); }
+.flight-hud b { font: 700 1.5rem var(--serif); color: #ffe3a0; }
+.flight-hud .btn { background: rgba(255, 255, 255, 0.16); color: #fdf6e4; border-color: transparent; }
+@media (max-width: 480px) { #flight-hint { display: none; } }
+
+/* ---------- Storybook scenes ---------- */
+.vignette { position: fixed; inset: 0; z-index: 70; background: #100c08; opacity: 0; pointer-events: none; transition: opacity 0.6s ease; }
+.vignette.show { opacity: 1; pointer-events: auto; }
+.vignette canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.vg-skip { position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); right: 16px; background: none; border: 0; color: #fdf6e4; font: 600 0.95rem var(--sans); text-decoration: underline; cursor: pointer; opacity: 0.85; }
+.vg-bar {
+  position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; gap: 16px;
+  padding: 22px 20px calc(22px + var(--safe-b)); background: linear-gradient(180deg, rgba(16, 12, 8, 0), rgba(16, 12, 8, 0.88) 45%);
+}
+.vg-text { margin: 0; max-width: 640px; color: #fdf6e4; font: italic 500 1.35rem/1.4 var(--serif); text-align: center; opacity: 0; }
+.vg-text.in { animation: vgIn 0.9s ease 0.3s forwards; }
+@keyframes vgIn { to { opacity: 1; } }
+@media (max-width: 560px) { .vg-bar { flex-direction: column; gap: 12px; } .vg-text { font-size: 1.18rem; } }
+
+/* ---------- The treasure cave ---------- */
+#cave .hud-top { align-items: center; }
+.place-btn.sea { background: linear-gradient(135deg, #1c7c96, #2aa8a0); color: #f1fffb; border-color: transparent; }
+.place-btn.sea span { color: #cdf3ea; }
 
 /* ---------- Something waiting in Dragon Haven ---------- */
 #vale-btn { position: relative; }

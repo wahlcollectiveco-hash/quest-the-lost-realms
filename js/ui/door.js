@@ -47,20 +47,24 @@ export function openDoorPanel({ onOpen, onVale, onThrough, here = true }) {
         </li>
         ${REALMS.slice(1).map((r, k) => {
           const wave = k === 0 && state.stars?.met?.singers;
+          const leaf = k === 1 && state.sea?.clamOpened;
+          const open = lit[k + 1];
           const meta = wave
-            ? (state.stars?.eggHatched ? 'A realm of the sea. Its hatchling remembers water all around.' : 'Carved on the egg the star-singers are keeping.')
-            : 'A realm not yet known.';
+            ? (open ? 'Awake! The Door now opens to the Realm of Tides, under the sea.' : 'This symbol is on the egg the star-singers are looking after.')
+            : leaf ? 'This symbol is on the egg in the giant clam. Its realm hasn’t been found yet.'
+              : 'A realm not yet known.';
           return `
-          <li class="${wave ? 'next' : 'later'}">
-            <img src="${glyph(k + 1, false)}" alt="" width="36" height="36">
-            <div class="t-info">${wave ? '<span class="t-eyebrow">Next</span>' : ''}<span class="t-name">${esc(r.symbol)}</span><span class="t-meta">${esc(meta)}</span></div>
+          <li class="${open ? 'lit' : wave || leaf ? 'next' : 'later'}">
+            <img src="${glyph(k + 1, open)}" alt="" width="36" height="36">
+            <div class="t-info">${open ? '<span class="t-eyebrow">Awake</span>' : wave || leaf ? '<span class="t-eyebrow">Next</span>' : ''}<span class="t-name">${esc(r.symbol)}${r.name && open ? ' · ' + esc(r.name) : ''}</span><span class="t-meta">${esc(meta)}</span></div>
           </li>`;
         }).join('')}
       </ol>
       <div class="detail-actions">
         ${!here ? '<button class="btn ghost" data-d="vale">Fly to Dragon Haven</button>' : ''}
         ${ready && here && !state.realm.doorOpened ? '<button class="btn primary glow" data-d="open">Open the Door</button>' : ''}
-        ${state.realm.doorOpened && here ? '<button class="btn primary glow" data-d="through">Step through to the Realm of Stars</button>' : ''}
+        ${state.realm.doorOpened && here ? '<button class="btn primary glow" data-d="through">Go to the Realm of Stars</button>' : ''}
+        ${lit[1] && here ? '<button class="btn primary glow" data-d="sea">Go to the Realm of Tides</button>' : ''}
       </div>
     </div>`, { className: 'detail', label: 'The Ancient Door' });
   m.el.addEventListener('click', (e) => {
@@ -68,6 +72,7 @@ export function openDoorPanel({ onOpen, onVale, onThrough, here = true }) {
     if (act === 'close') m.close();
     if (act === 'vale') { m.close(); onVale(); }
     if (act === 'open') { m.close(); onOpen(); }
-    if (act === 'through') { m.close(); onThrough?.(); }
+    if (act === 'through') { m.close(); onThrough?.('stars'); }
+    if (act === 'sea') { m.close(); onThrough?.('sea'); }
   });
 }

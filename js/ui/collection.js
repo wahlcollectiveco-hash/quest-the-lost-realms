@@ -304,7 +304,7 @@ export function createCollection({ getDragonName, onHatch, onShowItem, onReplay,
       <h3>${esc(it.name)}</h3>
       <p class="disc-desc ${it.kind === 'story' ? 'story' : ''}">${esc(it.kind === 'story' ? it.text : it.desc)}</p>
       ${mapDone ? '<p class="disc-desc">The map is complete! A dotted path leads beyond the Ancient Door…</p>' : ''}
-      ${TREASURE_STORIES[it.id] ? '<p class="disc-note">Quill in Dragon Haven knows the story behind this one. Go and ask!</p>' : ''}
+      ${it.kind === 'treasure' ? '<p class="disc-note">It’s on a shelf in your treasure cave now.' + (TREASURE_STORIES[it.id] ? ' Quill in Dragon Haven knows its story.' : '') + '</p>' : ''}
       <div class="disc-actions">
         <button class="btn primary" data-disc="ok">${more ? 'Next' : inHaven(it) ? (placeLater ? 'Choose a spot' : 'Nice!') : 'Collect'}</button>
       </div>`;

@@ -4,6 +4,7 @@
 import { state, save, uid } from './state.js';
 import { CATALOG, byId, inHaven } from './data/discoveries.js';
 import { TREATS } from './data/life.js';
+import { NEWCOMERS } from './data/newcomers.js';
 import { PALETTES, NAMES } from './data/creatures.js';
 
 // ---- The egg ----
@@ -55,37 +56,45 @@ export function renameCreature(id, name) {
 
 // ---- Rewards ----
 // Every finished Quest brings one thing, and the kind keeps changing:
-//   a treat to feed your dragon, something for your home (you choose where
-//   it goes), or a treasure for the pile.
-// Every third reward moves the story along instead (story fragments, map
+//   a treasure flight (a little game where you gather treasure), a new
+//   dragon to meet in one of the realms, a treasure for your cave, a treat,
+//   or now and then something to place at home.
+// Every third reward moves the story along instead (story pieces, map
 // pieces, the key, in this order).
 // Still deliberately not a points economy: nothing to count or spend.
 const PROGRESSION = ['story-1', 'map-1', 'story-2', 'map-2', 'mossy-key', 'map-3', 'story-3', 'map-4', 'story-4', 'story-5', 'story-6'];
-const WEIGHTS = { treat: 34, haven: 36, treasure: 30 };
+const WEIGHTS = { flight: 26, dragon: 20, treasure: 22, treat: 22, haven: 10 };
 const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const realmOpen = (r) => !r || (r === 'stars' && state.realm.doorOpened) || (r === 'sea' && state.stars?.eggHatched);
+
+// The next dragon waiting to turn up in a realm that's open.
+export const nextNewcomer = () => NEWCOMERS.find((n) => realmOpen(n.realm) && !state.newcomers?.[n.id]) || null;
+export const freeTreasures = (realm = null) => CATALOG.filter((c) => c.kind === 'treasure' && !c.special && realmOpen(c.realm) && !state.found[c.id] && (!realm || c.realm === realm));
 
 function pickGift() {
   const log = (state.rewardLog ||= { last: null, count: 0 });
   log.count++;
   const nextStory = PROGRESSION.map(byId).find((it) => !state.found[it.id]);
   if (nextStory && log.count % 3 === 2) return { type: 'item', item: nextStory };
-  // Things from a realm only turn up once that realm has opened.
-  const open = (c) => !c.realm || (c.realm === 'stars' && state.realm.doorOpened);
-  const free = (kinds) => CATALOG.filter((c) => !c.special && open(c) && kinds.includes(c.kind) && !state.found[c.id]);
+  const free = (kinds) => CATALOG.filter((c) => !c.special && realmOpen(c.realm) && kinds.includes(c.kind) && !state.found[c.id]);
   const havenItems = free(['flower', 'decoration']);
   const treasures = free(['treasure']);
-  // The very first reward is something for your home, so it starts to feel like yours.
-  if (log.count === 1 && havenItems.length) return { type: 'item', item: pickOne(havenItems) };
-  // (Visitors are resting for now; they'll be back in a later realm.)
+  const newcomer = nextNewcomer();
+  // The very first reward is a treasure flight, so the fun starts straight away.
+  if (log.count === 1) return { type: 'flight' };
   const avail = {
+    flight: (state.flights || 0) < 2 ? WEIGHTS.flight : 0,
+    dragon: newcomer ? WEIGHTS.dragon : 0,
+    treasure: treasures.length ? WEIGHTS.treasure : 0,
     treat: WEIGHTS.treat,
     haven: havenItems.length ? WEIGHTS.haven : 0,
-    treasure: treasures.length ? WEIGHTS.treasure : 0,
   };
   if (avail[log.last]) avail[log.last] *= 0.2; // rarely the same kind twice in a row
   let r = Math.random() * Object.values(avail).reduce((a, b) => a + b, 0);
   let kind = 'treat';
   for (const [k, w] of Object.entries(avail)) if ((r -= w) <= 0) { kind = k; break; }
+  if (kind === 'flight') return { type: 'flight' };
+  if (kind === 'dragon') return { type: 'dragon', newcomer };
   if (kind === 'haven') return { type: 'item', item: pickOne(havenItems) };
   if (kind === 'treasure') return { type: 'item', item: pickOne(treasures) };
   return { type: 'treat', treat: pickOne(TREATS) };
@@ -97,9 +106,12 @@ function giveGift(g) {
     state.pantry = state.pantry || {};
     state.pantry[g.treat.id] = (state.pantry[g.treat.id] || 0) + 1;
     log.last = 'treat';
-  } else if (g.type === 'visitor') {
-    state.visitors = [...(state.visitors || []), g.visitor.id];
-    log.last = 'visitor';
+  } else if (g.type === 'flight') {
+    state.flights = (state.flights || 0) + 1;
+    log.last = 'flight';
+  } else if (g.type === 'dragon') {
+    state.newcomers = { ...(state.newcomers || {}), [g.newcomer.id]: 'arrived' };
+    log.last = 'dragon';
   } else {
     state.found[g.item.id] = Date.now();
     // Haven things wait for you to choose where they go.
@@ -165,4 +177,12 @@ export function openChest() {
   for (const it of items) state.found[it.id] = Date.now();
   save();
   return items;
+}
+
+// ---- Treasure flights ----
+export function useFlight() {
+  if (!state.flights) return false;
+  state.flights--;
+  save();
+  return true;
 }

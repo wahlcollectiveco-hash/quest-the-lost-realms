@@ -90,6 +90,11 @@ export const RUNE_STORIES = [
 
 // What Quill knows about each treasure.
 export const TREASURE_STORIES = {
+  'sea-pearl': ['A sea pearl! Every pearl starts as one tiny grain of sand.', 'The clam adds a little bit each day. Small steps, for years. Sound familiar?'],
+  'singing-shell': ['A singing shell. The reef-keepers leave these for friends.', 'If you ever feel alone, hold it to your ear.'],
+  'sea-glass': ['Sea glass. This was something sharp once, and the sea made it smooth.', 'Time and patience can soften almost anything.'],
+  'great-pearl': ['The Great Pearl! I have only read about it.', 'They say it grew for a hundred years, waiting for someone to wake the reef. That was you.'],
+  'sun-feather': ['A sun feather. You only find these high above the clouds.', 'Your dragon must be a very good flier.'],
   'star-shard': ['A star shard. When a star goes out in the Realm of Stars, little pieces fall like this.', 'Keep it somewhere you can see it. It remembers being bright.'],
   'comet-pebble': ['A comet pebble. Comets carry messages between realms, or so the star-singers say.', 'This one seems to have been carrying it a very long way.'],
   sunstone: ['A Sunstone! Sunstones form where dragons nap in the sun for a hundred years.', 'They keep the warmth forever. Hold it on a cold day.'],

@@ -15,6 +15,7 @@ import { DRAGONS } from './data/dragons.js';
 import { eggNeed, eggReady } from './rewards.js';
 import { starSteps } from './realm.js';
 import { STAR_COUNT, starsLit, starEggHatched } from './starsRealm.js';
+const CORAL_COUNT = 10;
 
 export const GIFTS = {
   pebble: {
@@ -98,7 +99,14 @@ export function wishCard() {
     const lit = starsLit();
     return lit >= STAR_COUNT
       ? { eyebrow: 'The Realm of Stars', text: 'Every star is shining again! The star-singers’ egg is ready to hatch.', progress: '' }
-      : { eyebrow: 'The Realm of Stars', text: 'Every Quest you finish relights a star. When the sky is whole, the cold egg the star-singers are keeping will wake.', progress: `${lit} of ${STAR_COUNT} stars relit` };
+      : { eyebrow: 'The Realm of Stars', text: 'Every Quest you finish lights a star. When they’re all lit, the egg in the star-singers’ nest will hatch.', progress: `${lit} of ${STAR_COUNT} stars lit` };
+  }
+  // Then the sea: wake the corals in the Realm of Tides.
+  if (!state.sea?.clamOpened) {
+    const n = state.sea?.lit || 0;
+    return n >= CORAL_COUNT
+      ? { eyebrow: 'The Realm of Tides', text: 'Every coral is glowing! The giant clam is opening. Go and look!', progress: '' }
+      : { eyebrow: 'The Realm of Tides', text: 'Every Quest you finish wakes a sleeping coral. When the whole reef glows, the giant clam will open.', progress: `${n} of ${CORAL_COUNT} corals awake` };
   }
   return null;
 }
